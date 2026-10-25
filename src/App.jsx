@@ -5,13 +5,6 @@ import { catalog as demoCatalog } from './data/catalog';
 import { fetchCatalog, fetchTopTen, fetchPlayback, fetchSearch } from './services/api';
 import { readHistory, saveProgress } from './services/watchHistory';
 
-import {
-  getSafePlayerUrl,
-  PLAYER_SANDBOX,
-  PLAYER_ALLOW,
-  logShieldEvent,
-} from './services/vortexShield';
-
 // ANIMAÇÃO DE CARREGAMENTO PERFEITA - FICA AQUI! (linha 8 a 30)
 function PerfectLoader(){
   return (
@@ -30,31 +23,12 @@ function PerfectLoader(){
 
 function PlayerModal({ item, playback, season, setSeason, episode, setEpisode, onClose }){
   const [url, setUrl] = useState('');
-  const safeUrl = getSafePlayerUrl(url);
   useEffect(()=>{
     if(!playback) return;
     if(playback.type==='serie') setUrl(playback.buildUrl ? playback.buildUrl(season, episode, '#noEpList') : `${playback.playerUrl}/${season}/${episode}#noEpList`);
     else setUrl(playback.playerUrlNoList || playback.playerUrl);
   }, [season, episode, playback]);
   if(!playback || !url) return null;
-  {safeUrl ? (
-  <iframe
-    src={safeUrl}
-    width="100%"
-    height="100%"
-    title={item.title}
-    frameBorder="0"
-    allow={PLAYER_ALLOW}
-    allowFullScreen
-    referrerPolicy="no-referrer"
-    sandbox={PLAYER_SANDBOX}
-    onLoad={() => logShieldEvent('Player carregado com restrições básicas.')}
-  />
-) : (
-  <div className="player-error" role="alert">
-    Não foi possível carregar este player por segurança.
-  </div>
-)}
   return (
     <div className="player-overlay" onClick={(e)=>{ if(e.target===e.currentTarget) onClose(); }}>
       <div className="player-modal glass-modal">
