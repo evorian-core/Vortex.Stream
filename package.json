@@ -1,9 +1,22 @@
-
 {
   "name": "vortex-oficial",
   "version": "6.0-ultra-final",
   "type": "module",
-  "scripts": { "dev": "vite", "server": "node server/index.js", "build": "vite build" },
-  "dependencies": { "express": "^4.18.2", "cors": "^2.8.5", "dotenv": "^16.3.1", "lucide-react": "^0.344.0" },
-  "devDependencies": { "vite": "^5.0.0", "@vitejs/plugin-react": "^4.2.1", "react": "^18.2.0", "react-dom": "^18.2.0" }
+  "scripts": {
+    "dev": "vite",
+    "server": "node server/index.js",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "lucide-react": "^0.344.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.7.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "vite": "^6.4.5"
+  }
 }
