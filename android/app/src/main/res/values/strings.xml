@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">VORTEX</string>
+    <string name="title_activity_main">VORTEX</string>
+    <string name="package_name">com.evorian.vortex</string>
+    <string name="custom_url_scheme">com.evorian.vortex</string>
+</resources>

@@ -31,4 +31,4 @@ app.get('/api/playback/:id', async (req,res)=>{
   try{ const pb = await adapter.getPlayback(req.params.id); res.json(pb); }
   catch(e){ res.status(500).json({error:e.message}); }
 });
-app.listen(PORT, ()=> console.log(`✅ VORTEX API rodando http://localhost:${PORT} | SuperFlix: ON | TMDB: ON | Catalogo: ILIMITADO`));
+app.listen(PORT, ()=> console.log(`[VORTEX] API iniciada na porta ${PORT}; catálogo e playback disponíveis via API pública.`));

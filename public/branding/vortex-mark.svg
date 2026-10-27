@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="vortexGradient" x1="15" y1="14" x2="112" y2="117" gradientUnits="userSpaceOnUse"><stop stop-color="#DDE9FF"/><stop offset=".43" stop-color="#8BAAFF"/><stop offset="1" stop-color="#8B6BFF"/></linearGradient>
+    <linearGradient id="orbitGradient" x1="16" y1="32" x2="115" y2="94" gradientUnits="userSpaceOnUse"><stop stop-color="#A6C8FF" stop-opacity=".12"/><stop offset=".52" stop-color="#8AB6FF"/><stop offset="1" stop-color="#B6A1FF" stop-opacity=".2"/></linearGradient>
+  </defs>
+  <ellipse cx="64" cy="64" rx="52" ry="22" transform="rotate(-42 64 64)" stroke="url(#orbitGradient)" stroke-width="1.8"/>
+  <ellipse cx="64" cy="64" rx="47" ry="18" transform="rotate(42 64 64)" stroke="url(#orbitGradient)" stroke-width="1.4" opacity=".8"/>
+  <path d="M32 27 56 93c1.4 3.8 4.8 6.2 8 6.2s6.6-2.4 8-6.2L96 27H77L64 68 51 27H32Z" fill="url(#vortexGradient)"/>
+  <circle cx="101" cy="28" r="4" fill="#B8A6FF"/><circle cx="24" cy="83" r="2.5" fill="#8CCBFF"/>
+</svg>

@@ -1,6 +1,6 @@
 
 const SUPERFLIX_BASE = (process.env.SUPERFLIX_BASE_URL || 'https://superflixapi.fun').replace(/\/+$/, '');
-const TMDB_KEY = process.env.TMDB_API_KEY || '3aec63790d50f3b9fc2efb4c15a8cf99';
+const TMDB_KEY = process.env.TMDB_API_KEY || '';
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE = 'https://image.tmdb.org/t/p/w500';
 async function fetchJSON(url, timeoutMs=12000){
@@ -9,7 +9,7 @@ async function fetchJSON(url, timeoutMs=12000){
 }
 function normalizeId(item){ if(typeof item==='string'||typeof item==='number') return String(item).trim(); if(!item) return ''; return String(item.id||item.tmdb_id||item.imdb_id||'').trim(); }
 async function enrichWithTMDB(tmdbId, isMovie=true){
-  if(!tmdbId || tmdbId.startsWith('tt') || isNaN(Number(tmdbId))) return null;
+  if(!TMDB_KEY || !tmdbId || tmdbId.startsWith('tt') || isNaN(Number(tmdbId))) return null;
   try{ const type=isMovie?'movie':'tv'; const url=`${TMDB_BASE}/${type}/${tmdbId}?api_key=${TMDB_KEY}&language=pt-BR`; const data=await fetchJSON(url); return { title:data.title||data.name, originalTitle:data.original_title||data.original_name, synopsis:data.overview||'Sem sinopse.', year:(data.release_date||data.first_air_date||'').slice(0,4)||2024, poster:data.poster_path?`${TMDB_IMAGE}${data.poster_path}`:null, backdrop:data.backdrop_path?`https://image.tmdb.org/t/p/w1280${data.backdrop_path}`:null, rating:data.vote_average?String(Math.round(data.vote_average*10)/10):'14', genre:data.genres?.[0]?.name||(isMovie?'Filme':'Série') }; }catch{ return null; }
 }
 function toVortexItem(rawId, category, tmdbInfo=null){
@@ -48,6 +48,7 @@ export async function searchProvider(q){
   }catch{}
   // 2) TMDB SEARCH direto - resolve o problema de filmes que não aparecem
   try{
+    if (!TMDB_KEY) return results;
     const movieUrl=`${TMDB_BASE}/search/movie?api_key=${TMDB_KEY}&language=pt-BR&query=${encodeURIComponent(q)}`;
     const tvUrl=`${TMDB_BASE}/search/tv?api_key=${TMDB_KEY}&language=pt-BR&query=${encodeURIComponent(q)}`;
     const [movieData, tvData] = await Promise.all([ fetchJSON(movieUrl).catch(()=>({results:[]})), fetchJSON(tvUrl).catch(()=>({results:[]})) ]);
