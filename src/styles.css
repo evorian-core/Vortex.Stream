@@ -268,40 +268,91 @@ body{background:#08090b!important;background-image:none!important;color:#f7f7f8}
   .hero-dots button { transition: none; }
 }
 
-/* VORTEX 3.0 — autenticação */
-.auth-screen{min-height:100vh;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(390px,.95fr);background:#08090d;color:#f5f4fb;overflow:hidden;position:relative}
-.auth-art{position:relative;min-height:100vh;display:flex;flex-direction:column;justify-content:flex-end;padding:clamp(32px,6vw,92px);overflow:hidden;background:radial-gradient(ellipse at 45% 38%,#44316f 0%,#201a3a 28%,#10111c 60%,#08090d 100%)}
-.auth-art:before{content:"";position:absolute;inset:0;background:linear-gradient(140deg,#8d6dff17,transparent 42%),linear-gradient(0deg,#08090df2,transparent 68%)}
-.auth-art-glow{position:absolute;width:min(50vw,650px);aspect-ratio:1;left:10%;top:12%;border-radius:50%;background:radial-gradient(circle,#9b80ff2c,transparent 68%);filter:blur(8px)}
-.auth-art-word{position:relative;font-size:clamp(68px,10vw,160px);font-weight:950;letter-spacing:-.095em;line-height:.8;color:#f8f6ff;text-shadow:0 0 70px #9d7bff25}
-.auth-art-word span{display:inline-block;margin-left:14px;vertical-align:top;font-size:.17em;letter-spacing:.12em;color:#b4a1ff}
-.auth-art-caption{position:relative;margin-top:25px;color:#a6a1ba;font-size:10px;letter-spacing:.25em}
-.auth-art-orbit{position:absolute;border:1px solid #c1b2ff17;border-radius:50%;width:55vw;height:55vw;max-width:760px;max-height:760px;left:15%;top:5%;transform:rotate(-28deg)}
-.orbit-two{width:42vw;height:70vw;left:25%;top:-5%;transform:rotate(35deg);border-color:#78dfff12}
-.auth-panel{position:relative;z-index:2;display:flex;flex-direction:column;justify-content:center;width:100%;max-width:600px;margin:auto;padding:clamp(28px,5vw,76px)}
-.auth-brand{display:flex;align-items:center;gap:11px;color:#f7f5ff;text-decoration:none;font-size:15px;font-weight:900;letter-spacing:.23em;margin-bottom:clamp(40px,7vh,82px)}
-.auth-brand .brand-symbol{display:grid;place-items:center;width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,#9b81ff,#5540b8);color:white;font-size:20px;letter-spacing:-.08em;box-shadow:0 8px 28px #6c53d333}
-.auth-heading .section-kicker{font-size:9px;letter-spacing:.16em;color:#a99aff}
-.auth-heading h1{font-size:clamp(30px,3.4vw,45px);letter-spacing:-.06em;line-height:1.05;margin:14px 0 12px;font-weight:850}
-.auth-heading p{max-width:390px;margin:0;color:#9696a6;font-size:13px;line-height:1.7}
-.auth-mode-switch{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:5px;margin:30px 0 24px;border:1px solid #ffffff10;border-radius:12px;background:#ffffff05}
-.auth-mode-switch button{min-height:39px;border:0;border-radius:8px;background:transparent;color:#8e8e9f;font-size:12px;font-weight:700}
-.auth-mode-switch button.active{background:#24212f;color:#fff;box-shadow:0 3px 12px #0003}
-.auth-form{display:grid;gap:17px}
-.auth-form label{display:grid;gap:8px;color:#d4d2df;font-size:11px;font-weight:650}
-.auth-form label small{font-weight:400;color:#77788a;margin-left:4px}
-.auth-input-wrap{display:flex;align-items:center;gap:11px;min-height:49px;padding:0 14px;border:1px solid #ffffff19;border-radius:11px;background:#101118;color:#88879b;transition:border-color .18s,box-shadow .18s}
-.auth-input-wrap:focus-within{border-color:#8c78f2;box-shadow:0 0 0 3px #8c78f21a}
-.auth-input-wrap input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:#f8f7ff;font:inherit;font-size:12px}
-.auth-input-wrap input::placeholder{color:#666778}
-.auth-show-password{display:grid;place-items:center;border:0;background:transparent;color:#88879b;padding:4px}
-.auth-submit{display:flex;align-items:center;justify-content:center;gap:11px;min-height:49px;margin-top:5px;border:1px solid #a99aff;border-radius:11px;background:linear-gradient(115deg,#a493ff,#7560dc);color:#fff;font-size:12px;font-weight:800;box-shadow:0 10px 26px #7964e52b;transition:transform .18s,filter .18s}
-.auth-submit:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.08)}.auth-submit:disabled{opacity:.7;cursor:wait}
-.auth-spinner{animation:auth-spin 1s linear infinite}@keyframes auth-spin{to{transform:rotate(360deg)}}
-.auth-error{padding:11px 12px;border:1px solid #ff6c7a45;border-radius:9px;background:#ff53650d;color:#ff9ba5;font-size:11px;line-height:1.5}
-.auth-legal{font-size:10px;line-height:1.6;color:#68697a;margin:18px 0 0}
-.auth-security{display:flex;align-items:flex-start;gap:8px;margin-top:20px;color:#77788a;font-size:10px;line-height:1.5}.auth-security svg{flex:0 0 auto;color:#8f83d8}
-.auth-footer{display:flex;align-items:center;gap:8px;margin-top:38px;color:#77778a;font-size:10px;letter-spacing:.04em}
-.profiles-account{display:flex;align-items:center;justify-content:center;gap:14px;margin:24px 0 0;color:#77788a;font-size:11px}.profiles-account button{border:1px solid #ffffff20;border-radius:9px;padding:8px 12px;background:#ffffff07;color:#c7c3d8;font-size:11px}.profiles-account button:hover{border-color:#a99aff;color:white}
-@media(max-width:800px){.auth-screen{grid-template-columns:1fr}.auth-art{min-height:190px;height:190px;padding:30px 25px 26px;justify-content:flex-end}.auth-art-word{font-size:60px}.auth-art-caption{font-size:8px;margin-top:13px}.auth-art-orbit{width:330px;height:330px;left:auto;right:-60px;top:-150px}.orbit-two{width:240px;height:420px;right:20px;left:auto;top:-190px}.auth-panel{max-width:520px;padding:30px 24px 38px}.auth-brand{display:none}.auth-heading h1{font-size:34px}.auth-mode-switch{margin-top:25px}.auth-footer{margin-top:25px}.profiles-account{flex-wrap:wrap}}
-@media(prefers-reduced-motion:reduce){.auth-spinner{animation:none}.auth-submit{transition:none}}
+
+/* VORTEX 3.0 — correções de legibilidade, títulos e ranking Top 10 */
+.poster-track { align-items: stretch; }
+.poster-card { min-width: 0; overflow: visible; }
+.poster-art { position: relative; isolation: isolate; width: 100%; min-width: 0; }
+.poster-image { position: relative; z-index: 1; width: 100%; min-width: 0; }
+.poster-caption { display: flex; align-items: flex-start; gap: 8px; min-height: 48px; padding: 10px 2px 0; }
+.poster-caption > button:first-child {
+  display: -webkit-box; flex: 1 1 auto; min-width: 0; max-width: 100%;
+  white-space: normal; overflow: hidden; text-overflow: ellipsis;
+  overflow-wrap: anywhere; word-break: normal; line-height: 1.35;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-align: left;
+}
+.catalog-card-info { align-items: flex-start; }
+.catalog-title {
+  display: -webkit-box; width: 100%; min-width: 0; white-space: normal;
+  overflow: hidden; overflow-wrap: anywhere; line-height: 1.35;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.episode-copy h3, .cast-card strong, .profile-tile strong { overflow-wrap: anywhere; word-break: normal; line-height: 1.35; }
+
+/* Ranking fica ancorado ao pôster, nunca ao título abaixo dele. */
+.ranked-card { margin-left: 0 !important; padding-left: 0 !important; }
+.poster-track-ranked { grid-auto-columns: clamp(165px, 17vw, 225px); gap: clamp(20px, 2.4vw, 34px); }
+.poster-track-ranked .poster-art { padding-left: 27px; box-sizing: border-box; }
+.poster-track-ranked .poster-image { width: 100% !important; margin-left: 0 !important; }
+.poster-track-ranked .rank-number {
+  position: absolute; z-index: 0; left: -5px !important; bottom: 9px !important;
+  display: block; pointer-events: none; white-space: nowrap;
+  font-family: var(--font-display, system-ui, sans-serif);
+  font-size: clamp(76px, 8.2vw, 126px) !important; font-weight: 950;
+  font-style: italic; line-height: .78 !important; letter-spacing: -.075em !important;
+  color: #080b13 !important; -webkit-text-stroke: 2px #aaa1ff !important;
+  text-shadow: 0 5px 20px #000d !important; filter: drop-shadow(0 5px 8px #0008);
+}
+.poster-track-ranked .poster-caption { padding-left: 27px; }
+.content-section-ranked .section-title { margin-bottom: 22px; }
+@media (max-width: 760px) {
+  .poster-track-ranked { grid-auto-columns: clamp(155px, 47vw, 190px) !important; gap: 18px !important; }
+  .poster-track-ranked .poster-art { padding-left: 22px; }
+  .poster-track-ranked .rank-number { left: -3px !important; bottom: 8px !important; font-size: clamp(68px, 18vw, 94px) !important; -webkit-text-stroke: 1.5px #aaa1ff !important; }
+  .poster-track-ranked .poster-caption { padding-left: 22px; }
+  .poster-caption { min-height: 45px; }
+}
+
+/* VORTEX 3.0 — correção final do Top 10 e legibilidade */
+.content-section-ranked .poster-track-ranked { align-items: stretch !important; overflow-x: auto; overflow-y: visible; padding: 8px 4px 12px !important; }
+.content-section-ranked .poster-track-ranked .poster-card { min-width: 0; padding: 0 !important; margin: 0 !important; overflow: visible; }
+.content-section-ranked .poster-track-ranked .poster-art { position: relative; isolation: isolate; padding-left: 24px !important; overflow: visible; }
+.content-section-ranked .poster-track-ranked .poster-image { position: relative; z-index: 1; display: block; width: 100% !important; margin: 0 !important; aspect-ratio: 2 / 3; }
+.content-section-ranked .poster-track-ranked .rank-number { position: absolute; z-index: 0 !important; left: -1px !important; bottom: -7px !important; font-size: clamp(58px, 6.2vw, 88px) !important; line-height: .82 !important; letter-spacing: -.075em !important; font-weight: 900 !important; color: #08090d !important; -webkit-text-stroke: 1.5px #a5a6b4 !important; text-shadow: 0 3px 8px #000 !important; filter: none !important; pointer-events: none; }
+.content-section-ranked .poster-track-ranked .poster-caption { position: relative; z-index: 2; padding: 9px 0 0 24px !important; min-height: 46px; }
+.content-section-ranked .poster-caption > button:first-child { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; line-height: 1.35; min-width: 0; }
+.poster-caption > button:first-child, .catalog-title { white-space: normal; overflow-wrap: anywhere; line-height: 1.35; }
+.cast-avatar { overflow: hidden; flex: 0 0 auto; }
+.cast-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+@media (max-width: 760px) {
+  .content-section-ranked .poster-track-ranked { grid-auto-columns: clamp(145px, 42vw, 185px) !important; gap: 16px !important; }
+  .content-section-ranked .poster-track-ranked .poster-art { padding-left: 20px !important; }
+  .content-section-ranked .poster-track-ranked .rank-number { font-size: clamp(52px, 16vw, 76px) !important; left: -1px !important; bottom: -4px !important; -webkit-text-stroke: 1.2px #a5a6b4 !important; }
+  .content-section-ranked .poster-track-ranked .poster-caption { padding-left: 20px !important; }
+}
+
+/* VORTEX 3.0 — refinamento final do ranking, galeria e elenco */
+.content-section-ranked .poster-track-ranked .poster-art { position: relative !important; isolation: isolate; padding-left: 30px !important; }
+.content-section-ranked .poster-track-ranked .rank-number {
+  z-index: 2 !important; left: -2px !important; bottom: 6px !important;
+  font-size: clamp(68px, 7.2vw, 112px) !important;
+  color: transparent !important; -webkit-text-stroke: 1.8px rgba(173, 165, 255, .92) !important;
+  text-shadow: 0 4px 18px rgba(0,0,0,.95) !important; line-height: .78 !important;
+}
+.content-section-ranked .poster-track-ranked .poster-image { z-index: 1 !important; position: relative; }
+.content-section-ranked .poster-track-ranked .poster-caption { padding-left: 30px !important; }
+.avatar-choice-art img, .profile-avatar img { display:block; width:100%; height:100%; object-fit:cover; border-radius:inherit; }
+.avatar-choices { display:grid; grid-template-columns:repeat(auto-fill,minmax(82px,1fr)); gap:12px; max-height:330px; overflow:auto; padding:4px 2px 10px; }
+.avatar-choice { min-width:0; display:flex; flex-direction:column; align-items:center; gap:7px; padding:8px 5px; color:#dce4f5; background:rgba(255,255,255,.025); border:1px solid rgba(153,169,211,.15); border-radius:13px; }
+.avatar-choice.chosen { border-color:#8c79ff; background:linear-gradient(145deg,rgba(119,93,255,.2),rgba(0,210,255,.07)); box-shadow:0 0 0 1px #8c79ff33; }
+.avatar-choice-art { width:52px; height:52px; display:grid; place-items:center; overflow:hidden; border-radius:15px; background:linear-gradient(145deg,#282044,#101725); color:#c6bcff; font-weight:800; }
+.avatar-choice>span:last-child { max-width:100%; font-size:10px; text-align:center; line-height:1.25; overflow-wrap:anywhere; }
+.cast-card { min-width:0; }
+.cast-card>div:last-child { min-width:0; }
+.cast-card strong,.cast-card span { overflow-wrap:anywhere; }
+@media(max-width:760px) {
+ .content-section-ranked .poster-track-ranked .poster-art { padding-left:22px !important; }
+ .content-section-ranked .poster-track-ranked .rank-number { font-size:clamp(54px,15vw,78px) !important; left:-1px !important; bottom:5px !important; -webkit-text-stroke:1.4px rgba(173,165,255,.95) !important; }
+ .content-section-ranked .poster-track-ranked .poster-caption { padding-left:22px !important; }
+ .avatar-choices { grid-template-columns:repeat(auto-fill,minmax(70px,1fr)); gap:8px; }
+}

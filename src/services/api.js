@@ -1,11 +1,4 @@
-
-const API_BASE = (
-  import.meta.env.VITE_API_BASE_URL ||
-  'https://vortex-stream-u8wz.onrender.com'
-).replace(/\/+$/, '');
-
-const TOP_TEN_CACHE_KEY = 'vortex_top_ten_v1';
-const TOP_TEN_CACHE_TTL = 60 * 60 * 1000; // 1 hora
+const API_BASE = 'https://vortex-stream-u8wz.onrender.com';
 
 async function request(path) {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -31,70 +24,10 @@ async function request(path) {
   return response.json();
 }
 
-function extractItems(data) {
-  if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.items)) return data.items;
-  if (Array.isArray(data?.results)) return data.results;
-  if (Array.isArray(data?.results?.items)) return data.results.items;
-  return [];
-}
-
-/**
- * Retorna o Top 10 salvo localmente, se existir.
- * O cache pode ser usado imediatamente enquanto a API atualiza os dados.
- */
-export function getCachedTopTen() {
-  try {
-    const raw = localStorage.getItem(TOP_TEN_CACHE_KEY);
-    if (!raw) return null;
-
-    const cached = JSON.parse(raw);
-
-    if (!Array.isArray(cached.items)) return null;
-
-    return cached.items;
-  } catch (error) {
-    console.warn('[VORTEX] Não foi possível ler o cache do Top 10:', error);
-    return null;
-  }
-}
-
-function saveCachedTopTen(items) {
-  try {
-    localStorage.setItem(
-      TOP_TEN_CACHE_KEY,
-      JSON.stringify({
-        items,
-        updatedAt: Date.now(),
-      })
-    );
-  } catch (error) {
-    console.warn('[VORTEX] Não foi possível salvar o cache:', error);
-  }
-}
-
-function isTopTenCacheFresh() {
-  try {
-    const raw = localStorage.getItem(TOP_TEN_CACHE_KEY);
-    if (!raw) return false;
-
-    const cached = JSON.parse(raw);
-
-    return (
-      Array.isArray(cached.items) &&
-      cached.items.length > 0 &&
-      Number.isFinite(cached.updatedAt) &&
-      Date.now() - cached.updatedAt < TOP_TEN_CACHE_TTL
-    );
-  } catch {
-    return false;
-  }
-}
-
 export async function fetchCatalog() {
   try {
     const data = await request('/api/catalog?limit=100');
-    return extractItems(data);
+    return Array.isArray(data) ? data : (data.items || []);
   } catch (error) {
     console.error('[VORTEX] Falha ao carregar catálogo:', error);
     return null;
@@ -108,7 +41,7 @@ export async function fetchSearch(query) {
 
   try {
     const data = await request(`/api/search?q=${encodeURIComponent(q)}`);
-    return extractItems(data);
+    return Array.isArray(data) ? data : (data.items || []);
   } catch (error) {
     console.error('[VORTEX] Falha na pesquisa:', error);
     return [];
@@ -123,43 +56,301 @@ export async function fetchPlayback(id) {
   return request(`/api/playback/${encodeURIComponent(String(id))}`);
 }
 
-/**
- * Busca títulos em alta.
- * A rota /api/trending precisa existir no backend para fornecer
- * tendências reais; o catálogo é apenas uma alternativa de contingência.
- */
-export async function fetchTopTen({ forceRefresh = false } = {}) {
-  if (!forceRefresh && isTopTenCacheFresh()) {
-    const cached = getCachedTopTen();
-    if (cached?.length) return cached.slice(0, 10);
+const TOP_TEN_CACHE_KEY = 'vortex.top-ten.trending.v2';
+const TOP_TEN_CACHE_MAX_AGE = 60 * 60 * 1000;
+
+function readTopTenCache() {
+  try {
+    const cached = JSON.parse(
+      localStorage.getItem(TOP_TEN_CACHE_KEY) || 'null'
+    );
+
+    if (!cached || !Array.isArray(cached.items)) {
+      return null;
+    }
+
+    return {
+      items: cached.items,
+      savedAt: Number(cached.savedAt) || 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function getCachedTopTen() {
+  const cached = readTopTenCache();
+  return cached?.items?.length ? cached.items : null;
+}
+
+function titleKind(item) {
+  const raw = String(
+    item?.type ||
+    item?.media_type ||
+    item?.mediaType ||
+    item?.providerCategory ||
+    ''
+  ).toLowerCase();
+
+  if (['movie', 'film', 'filme', 'movies'].includes(raw)) {
+    return 'movie';
   }
 
-  try {
-    const data = await request('/api/trending?window=day&limit=40');
-    const trending = extractItems(data);
+  if (
+    ['tv', 'serie', 'série', 'series', 'show', 'television'].includes(raw)
+  ) {
+    return 'series';
+  }
 
-    if (trending.length > 0) {
-      const topTen = trending.slice(0, 10);
-      saveCachedTopTen(topTen);
-      return topTen;
+  return raw ? null : 'unknown';
+}
+
+function trendScore(item) {
+  const values = [
+    item.trending_score,
+    item.trendingScore,
+    item.trend_score,
+    item.popularity,
+    item.trending,
+    item.rank_score,
+    item.rankScore,
+  ];
+
+  for (const value of values) {
+    const number = Number(value);
+
+    if (Number.isFinite(number) && number > 0) {
+      return number;
     }
+  }
+
+  const votes =
+    Number(
+      item.vote_count ??
+      item.voteCount ??
+      item.votes ??
+      0
+    ) || 0;
+
+  const rating =
+    Number(
+      item.vote_average ??
+      item.voteAverage ??
+      item.rating ??
+      0
+    ) || 0;
+
+  return votes > 0
+    ? Math.log10(votes + 1) * 10 + rating
+    : rating;
+}
+
+function normalizeTrendingItem(item, index) {
+  const kind = titleKind(item);
+
+  const type =
+    kind === 'movie' || kind === 'series'
+      ? kind
+      : (item.type || 'movie');
+
+  return {
+    ...item,
+
+    id:
+      item.id ??
+      item.tmdb_id ??
+      item.providerId ??
+      `trending-${index}-${item.title || item.name || 'title'}`,
+
+    title:
+      item.title ||
+      item.name ||
+      item.original_title ||
+      item.original_name ||
+      'Título sem nome',
+
+    type,
+
+    synopsis:
+      item.synopsis ||
+      item.overview ||
+      item.description ||
+      '',
+
+    poster:
+      item.poster ||
+      item.poster_path_url ||
+      (
+        item.poster_path
+          ? `https://image.tmdb.org/t/p/w500${item.poster_path}`
+          : ''
+      ),
+
+    backdrop:
+      item.backdrop ||
+      item.backdrop_path_url ||
+      (
+        item.backdrop_path
+          ? `https://image.tmdb.org/t/p/original${item.backdrop_path}`
+          : ''
+      ),
+
+    year:
+      item.year ||
+      String(
+        item.release_date ||
+        item.first_air_date ||
+        ''
+      ).slice(0, 4) ||
+      null,
+
+    genre:
+      item.genre ||
+      (type === 'series' ? 'Série' : 'Filme'),
+  };
+}
+
+function buildTrendingTopTen(source) {
+  if (!Array.isArray(source)) {
+    return [];
+  }
+
+  const eligible = source
+    .map((item, index) => ({
+      ...normalizeTrendingItem(item, index),
+      __sourceIndex: index,
+      __kind: titleKind(item),
+    }))
+    .filter(
+      item =>
+        item.__kind === 'movie' ||
+        item.__kind === 'series' ||
+        item.__kind === 'unknown'
+    );
+
+  const hasExplicitRanking = eligible.some(
+    item =>
+      Number.isFinite(Number(item.trending_rank)) &&
+      Number(item.trending_rank) > 0
+  );
+
+  if (hasExplicitRanking) {
+    eligible.sort(
+      (a, b) =>
+        (
+          Number(a.trending_rank) ||
+          Number.MAX_SAFE_INTEGER
+        ) -
+          (
+            Number(b.trending_rank) ||
+            Number.MAX_SAFE_INTEGER
+          ) ||
+        a.__sourceIndex - b.__sourceIndex
+    );
+  } else {
+    eligible.sort(
+      (a, b) =>
+        trendScore(b) - trendScore(a) ||
+        a.__sourceIndex - b.__sourceIndex
+    );
+  }
+
+  const seen = new Set();
+
+  return eligible
+    .filter(item => {
+      const key = String(item.id ?? item.title).toLowerCase();
+
+      if (seen.has(key)) {
+        return false;
+      }
+
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 10)
+    .map(({ __sourceIndex, __kind, ...item }) => item);
+}
+
+function cacheTopTen(items) {
+  try {
+    localStorage.setItem(
+      TOP_TEN_CACHE_KEY,
+      JSON.stringify({
+        items,
+        savedAt: Date.now(),
+      })
+    );
   } catch (error) {
     console.warn(
-      '[VORTEX] Tendências indisponíveis; tentando o catálogo:',
+      '[VORTEX] Não foi possível salvar o cache do Top 10:',
+      error
+    );
+  }
+}
+
+/**
+ * Atualiza o Top 10.
+ *
+ * Prioridade:
+ * 1. Endpoint de tendências do backend.
+ * 2. Catálogo remoto real, caso esteja disponível.
+ * 3. Cache salvo anteriormente.
+ *
+ * O catálogo demonstrativo local não é usado automaticamente
+ * para inventar um ranking de tendências.
+ */
+export async function fetchTopTen(catalogOverride) {
+  const cached = readTopTenCache();
+
+  try {
+    // Tenta carregar tendências reais do backend.
+    try {
+      const trendingData = await request(
+        '/api/trending?window=day&limit=40'
+      );
+
+      const trendingItems = Array.isArray(trendingData)
+        ? trendingData
+        : (trendingData.items || []);
+
+      const items = buildTrendingTopTen(trendingItems);
+
+      if (items.length) {
+        cacheTopTen(items);
+        return items;
+      }
+    } catch (trendingError) {
+      console.warn(
+        '[VORTEX] Endpoint /api/trending indisponível. ' +
+        'O backend publicado precisa implementar essa rota. ' +
+        'Tentando o catálogo remoto.'
+      );
+    }
+
+    // Compatibilidade com o backend atual.
+    const catalog = Array.isArray(catalogOverride)
+      ? catalogOverride
+      : await fetchCatalog();
+
+    if (Array.isArray(catalog) && catalog.length) {
+      const items = buildTrendingTopTen(catalog);
+
+      if (items.length) {
+        cacheTopTen(items);
+        return items;
+      }
+    }
+  } catch (error) {
+    console.error(
+      '[VORTEX] Falha ao atualizar Top 10:',
       error
     );
   }
 
-  // Mantém a aplicação utilizável se a rota de tendências falhar.
-  const cached = getCachedTopTen();
-  if (cached?.length) return cached.slice(0, 10);
-
-  const catalog = await fetchCatalog();
-
-  if (catalog?.length) {
-    const fallback = catalog.slice(0, 10);
-    saveCachedTopTen(fallback);
-    return fallback;
+  // Usa o último ranking salvo se as consultas falharem.
+  if (cached?.items?.length) {
+    return cached.items;
   }
 
   return null;

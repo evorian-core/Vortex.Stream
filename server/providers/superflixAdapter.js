@@ -1,69 +1,702 @@
 
-const SUPERFLIX_BASE = (process.env.SUPERFLIX_BASE_URL || 'https://superflixapi.fun').replace(/\/+$/, '');
+const SUPERFLIX_BASE = (
+  process.env.SUPERFLIX_BASE_URL || 'https://superflixapi.fun'
+).replace(/\/+$/, '');
+
 const TMDB_KEY = process.env.TMDB_API_KEY || '';
 const TMDB_BASE = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE = 'https://image.tmdb.org/t/p/w500';
-async function fetchJSON(url, timeoutMs=12000){
-  const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(), timeoutMs);
-  try{ const res=await fetch(url,{headers:{'User-Agent':'VORTEX/4.0'}}); if(!res.ok) throw new Error(`HTTP ${res.status}`); return await res.json(); }finally{clearTimeout(t);}
+const TMDB_BACKDROP = 'https://image.tmdb.org/t/p/w1280';
+
+async function fetchJSON(url, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'VORTEX/4.0' },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    return await response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
 }
-function normalizeId(item){ if(typeof item==='string'||typeof item==='number') return String(item).trim(); if(!item) return ''; return String(item.id||item.tmdb_id||item.imdb_id||'').trim(); }
-async function enrichWithTMDB(tmdbId, isMovie=true){
-  if(!TMDB_KEY || !tmdbId || tmdbId.startsWith('tt') || isNaN(Number(tmdbId))) return null;
-  try{ const type=isMovie?'movie':'tv'; const url=`${TMDB_BASE}/${type}/${tmdbId}?api_key=${TMDB_KEY}&language=pt-BR`; const data=await fetchJSON(url); return { title:data.title||data.name, originalTitle:data.original_title||data.original_name, synopsis:data.overview||'Sem sinopse.', year:(data.release_date||data.first_air_date||'').slice(0,4)||2024, poster:data.poster_path?`${TMDB_IMAGE}${data.poster_path}`:null, backdrop:data.backdrop_path?`https://image.tmdb.org/t/p/w1280${data.backdrop_path}`:null, rating:data.vote_average?String(Math.round(data.vote_average*10)/10):'14', genre:data.genres?.[0]?.name||(isMovie?'Filme':'Série') }; }catch{ return null; }
+
+function tmdbUrl(path, params = {}) {
+  const url = new URL(`${TMDB_BASE}${path}`);
+
+  if (TMDB_KEY) {
+    url.searchParams.set('api_key', TMDB_KEY);
+  }
+
+  url.searchParams.set('language', 'pt-BR');
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null) {
+      url.searchParams.set(key, String(value));
+    }
+  }
+
+  return url.toString();
 }
-function toVortexItem(rawId, category, tmdbInfo=null){
-  const id=normalizeId(rawId); if(!id) return null; const isMovie=['filme','movie','filmes'].includes(category);
-  const titleFinal=tmdbInfo?.title||`${category} ${id}`;
-  return { id:`${category}-${id}`, providerId:id, providerCategory:category, title:titleFinal, originalTitle:tmdbInfo?.originalTitle||id, type:isMovie?'movie':'series', year:tmdbInfo?.year||2024, rating:tmdbInfo?.rating||'14', duration:isMovie?'1h 50min':undefined, genre:tmdbInfo?.genre||category, synopsis:tmdbInfo?.synopsis||`ID ${id} via SuperFlix`, director:'SuperFlix', cast:[], poster:tmdbInfo?.poster||`https://via.placeholder.com/400x600/0e1428/8dbdff?text=${encodeURIComponent(titleFinal.slice(0,20))}`, backdrop:tmdbInfo?.backdrop||tmdbInfo?.poster||`https://via.placeholder.com/1200x600/08090d/8dbdff?text=${encodeURIComponent(titleFinal.slice(0,20))}`, featured:false, seasons:!isMovie?[{number:1, episodes:Array.from({length:24},(_,i)=>({number:i+1, title:`Episódio ${i+1}`, duration:'45 min'}))}]:undefined };
+
+function normalizeId(item) {
+  if (typeof item === 'string' || typeof item === 'number') {
+    return String(item).trim();
+  }
+
+  if (!item) return '';
+
+  return String(
+    item.tmdb_id ||
+    item.id ||
+    item.imdb_id ||
+    ''
+  ).trim();
 }
-async function listByCategory(category, limit=60){
-  const url=new URL(`${SUPERFLIX_BASE}/lista`); url.searchParams.set('category', category); url.searchParams.set('format','json'); url.searchParams.set('type','tmdb'); url.searchParams.set('limit', String(limit));
-  try{ const data=await fetchJSON(url.toString()); return Array.isArray(data)?data:(data.items||data.results||data.data||[]); }catch(e){ console.warn(category, e.message); return []; }
+
+function isMovieCategory(category) {
+  return ['filme', 'movie', 'filmes'].includes(
+    String(category || '').toLowerCase()
+  );
 }
-export async function getProviderCatalog(opts={}){
+
+function getImage(path, base = TMDB_IMAGE) {
+  return path ? `${base}${path}` : null;
+}
+
+function getYear(data, isMovie) {
+  const date = isMovie
+    ? data.release_date
+    : data.first_air_date;
+
+  return date ? date.slice(0, 4) : null;
+}
+
+/**
+ * Busca os metadados gerais de um filme ou série.
+ * Não inventa temporadas nem episódios.
+ */
+async function enrichWithTMDB(tmdbId, isMovie = true) {
+  if (
+    !TMDB_KEY ||
+    !tmdbId ||
+    String(tmdbId).startsWith('tt') ||
+    !/^\d+$/.test(String(tmdbId))
+  ) {
+    return null;
+  }
+
+  try {
+    const type = isMovie ? 'movie' : 'tv';
+    const data = await fetchJSON(
+      tmdbUrl(`/${type}/${tmdbId}`)
+    );
+
+    return {
+      title: data.title || data.name,
+      originalTitle:
+        data.original_title || data.original_name,
+      synopsis: data.overview || 'Sem sinopse disponível.',
+      year: getYear(data, isMovie),
+      poster: getImage(data.poster_path),
+      backdrop: getImage(data.backdrop_path, TMDB_BACKDROP),
+      rating:
+        typeof data.vote_average === 'number'
+          ? data.vote_average.toFixed(1)
+          : null,
+      genre: data.genres?.[0]?.name ||
+        (isMovie ? 'Filme' : 'Série'),
+      numberOfSeasons: isMovie
+        ? undefined
+        : data.number_of_seasons,
+      numberOfEpisodes: isMovie
+        ? undefined
+        : data.number_of_episodes,
+      status: isMovie ? undefined : data.status,
+    };
+  } catch (error) {
+    console.warn(
+      `[VORTEX] Falha ao buscar metadados TMDB (${tmdbId}):`,
+      error.message
+    );
+
+    return null;
+  }
+}
+
+/**
+ * Converte um item do catálogo para o formato do VORTEX.
+ *
+ * IMPORTANTE:
+ * Os dados de temporadas não são simulados aqui.
+ * Eles serão carregados pela função getSeriesDetails().
+ */
+function toVortexItem(rawId, category, tmdbInfo = null) {
+  const providerId = normalizeId(rawId);
+
+  if (!providerId) return null;
+
+  const isMovie = isMovieCategory(category);
+  const title = tmdbInfo?.title || `${category} ${providerId}`;
+
+  const item = {
+    id: `${category}-${providerId}`,
+    providerId,
+    providerCategory: category,
+    title,
+    originalTitle: tmdbInfo?.originalTitle || title,
+    type: isMovie ? 'movie' : 'series',
+    year: tmdbInfo?.year || null,
+    rating: tmdbInfo?.rating || null,
+    genre: tmdbInfo?.genre || category,
+    synopsis: tmdbInfo?.synopsis || 'Sinopse indisponível.',
+    director: 'SuperFlix',
+    cast: [],
+    poster:
+      tmdbInfo?.poster ||
+      `https://placehold.co/400x600/0e1428/8dbdff?text=${encodeURIComponent(title.slice(0, 20))}`,
+    backdrop:
+      tmdbInfo?.backdrop ||
+      tmdbInfo?.poster ||
+      `https://placehold.co/1200x600/08090d/8dbdff?text=${encodeURIComponent(title.slice(0, 20))}`,
+    featured: false,
+  };
+
+  if (isMovie) {
+    item.duration = 'Duração indisponível';
+  } else {
+    item.numberOfSeasons = tmdbInfo?.numberOfSeasons ?? null;
+    item.numberOfEpisodes = tmdbInfo?.numberOfEpisodes ?? null;
+    item.status = tmdbInfo?.status ?? null;
+
+    // Não atribuímos seasons aqui.
+    // A estrutura real será obtida pela API de temporadas.
+  }
+
+  return item;
+}
+
+/**
+ * Obtém os episódios reais de uma temporada da TMDB.
+ *
+ * Exemplo:
+ * GET /tv/71912/season/1
+ */
+export async function getSeasonDetails(tmdbId, seasonNumber) {
+  if (!TMDB_KEY) {
+    throw new Error('TMDB_API_KEY não configurada.');
+  }
+
+  if (!/^\d+$/.test(String(tmdbId))) {
+    throw new Error('ID TMDB inválido.');
+  }
+
+  if (
+    !Number.isInteger(Number(seasonNumber)) ||
+    Number(seasonNumber) < 0
+  ) {
+    throw new Error('Número de temporada inválido.');
+  }
+
+  const data = await fetchJSON(
+    tmdbUrl(`/tv/${tmdbId}/season/${seasonNumber}`)
+  );
+
+  return {
+    id: data.id,
+    number: data.season_number,
+    name: data.name || `Temporada ${data.season_number}`,
+    overview: data.overview || '',
+    poster: getImage(data.poster_path),
+    airDate: data.air_date || null,
+    episodes: (data.episodes || []).map((episode) => ({
+      id: episode.id,
+      number: episode.episode_number,
+      seasonNumber: episode.season_number,
+      title: episode.name || `Episódio ${episode.episode_number}`,
+      synopsis: episode.overview || '',
+      airDate: episode.air_date || null,
+      duration: episode.runtime
+        ? `${episode.runtime} min`
+        : null,
+      still: getImage(episode.still_path),
+      rating:
+        typeof episode.vote_average === 'number'
+          ? episode.vote_average.toFixed(1)
+          : null,
+    })),
+  };
+}
+
+/**
+ * Obtém a série e todas as suas temporadas reais.
+ *
+ * O parâmetro includeEpisodes controla se os episódios
+ * serão carregados imediatamente.
+ */
+export async function getSeriesDetails(
+  tmdbId,
+  { includeEpisodes = true } = {}
+) {
+  if (!TMDB_KEY) {
+    throw new Error('TMDB_API_KEY não configurada.');
+  }
+
+  if (!/^\d+$/.test(String(tmdbId))) {
+    throw new Error('ID TMDB inválido.');
+  }
+
+  const data = await fetchJSON(
+    tmdbUrl(`/tv/${tmdbId}`)
+  );
+
+  const seasonList = (data.seasons || [])
+    .filter((season) => Number.isInteger(season.season_number))
+    .sort((a, b) => a.season_number - b.season_number);
+
+  const seasons = await Promise.all(
+    seasonList.map(async (season) => {
+      const basicSeason = {
+        id: season.id,
+        number: season.season_number,
+        name: season.name ||
+          `Temporada ${season.season_number}`,
+        overview: season.overview || '',
+        poster: getImage(season.poster_path),
+        airDate: season.air_date || null,
+        episodeCount: season.episode_count || 0,
+      };
+
+      if (!includeEpisodes) {
+        return basicSeason;
+      }
+
+      try {
+        return await getSeasonDetails(
+          tmdbId,
+          season.season_number
+        );
+      } catch (error) {
+        console.warn(
+          `[VORTEX] Não foi possível carregar a temporada ${season.season_number}:`,
+          error.message
+        );
+
+        // Não inventa episódios quando a TMDB falha.
+        return {
+          ...basicSeason,
+          episodes: null,
+          unavailable: true,
+        };
+      }
+    })
+  );
+
+  return {
+    id: data.id,
+    title: data.name,
+    originalTitle: data.original_name,
+    synopsis: data.overview || '',
+    poster: getImage(data.poster_path),
+    backdrop: getImage(data.backdrop_path, TMDB_BACKDROP),
+    year: getYear(data, false),
+    rating:
+      typeof data.vote_average === 'number'
+        ? data.vote_average.toFixed(1)
+        : null,
+    status: data.status || null,
+    numberOfSeasons: data.number_of_seasons ?? seasons.length,
+    numberOfEpisodes: data.number_of_episodes ?? null,
+    seasons,
+  };
+}
+
+async function listByCategory(category, limit = 60) {
+  const url = new URL(`${SUPERFLIX_BASE}/lista`);
+
+  url.searchParams.set('category', category);
+  url.searchParams.set('format', 'json');
+  url.searchParams.set('type', 'tmdb');
+  url.searchParams.set('limit', String(limit));
+
+  try {
+    const data = await fetchJSON(url.toString());
+
+    return Array.isArray(data)
+      ? data
+      : data.items || data.results || data.data || [];
+  } catch (error) {
+    console.warn(
+      `[VORTEX] Erro ao carregar ${category}:`,
+      error.message
+    );
+
+    return [];
+  }
+}
+
+/**
+ * Catálogo principal.
+ * Não carrega todos os episódios de todas as séries
+ * durante a abertura da página inicial.
+ */
+export async function getProviderCatalog(opts = {}) {
   const limit = opts.limit || 100;
-  const [filmes, series, animes, doramas] = await Promise.all([ listByCategory('filme', limit), listByCategory('serie', limit), listByCategory('anime', 40), listByCategory('dorama', 40) ]);
-  const limited = [
-    ...filmes.slice(0, Math.floor(limit*0.4)).map(id=>({id, cat:'filme', isMovie:true})),
-    ...series.slice(0, Math.floor(limit*0.3)).map(id=>({id, cat:'serie', isMovie:false})),
-    ...animes.slice(0, Math.floor(limit*0.15)).map(id=>({id, cat:'anime', isMovie:false})),
-    ...doramas.slice(0, Math.floor(limit*0.15)).map(id=>({id, cat:'dorama', isMovie:false})),
+
+  const [movies, series, anime, doramas] = await Promise.all([
+    listByCategory('filme', limit),
+    listByCategory('serie', limit),
+    listByCategory('anime', 40),
+    listByCategory('dorama', 40),
+  ]);
+
+  const entries = [
+    ...movies
+      .slice(0, Math.floor(limit * 0.4))
+      .map((id) => ({ id, category: 'filme', isMovie: true })),
+
+    ...series
+      .slice(0, Math.floor(limit * 0.3))
+      .map((id) => ({ id, category: 'serie', isMovie: false })),
+
+    ...anime
+      .slice(0, Math.floor(limit * 0.15))
+      .map((id) => ({ id, category: 'anime', isMovie: false })),
+
+    ...doramas
+      .slice(0, Math.floor(limit * 0.15))
+      .map((id) => ({ id, category: 'dorama', isMovie: false })),
   ];
-  const enriched = await Promise.all(limited.map(async ({id, cat, isMovie})=>{
-    const rawId=normalizeId(id); const info=await enrichWithTMDB(rawId, isMovie); return toVortexItem(rawId, cat, info);
-  }));
-  const items=enriched.filter(Boolean); if(items.length) items[0].featured=true; return items;
+
+  const enriched = await Promise.all(
+    entries.map(async ({ id, category, isMovie }) => {
+      const rawId = normalizeId(id);
+
+      const info = await enrichWithTMDB(rawId, isMovie);
+
+      return toVortexItem(rawId, category, info);
+    })
+  );
+
+  const items = enriched.filter(Boolean);
+
+  if (items.length > 0) {
+    items[0].featured = true;
+  }
+
+  return items;
 }
-// BUSCA INFINITA: busca no SuperFlix E no TMDB direto
-export async function searchProvider(q){
-  if(!q) return [];
+
+/**
+ * Busca títulos no provedor e na TMDB.
+ * Os resultados da TMDB mantêm o tipo correto.
+ */
+export async function searchProvider(query) {
+  if (!query?.trim()) return [];
+
   const results = [];
-  // 1) SuperFlix
-  try{
-    const url=new URL(`${SUPERFLIX_BASE}/lista`); url.searchParams.set('category','pesquisa'); url.searchParams.set('q', q); url.searchParams.set('format','json'); url.searchParams.set('limit','30');
-    const data=await fetchJSON(url.toString()); const arr=Array.isArray(data)?data:(data.items||[]);
-    const enriched = await Promise.all(arr.slice(0,10).map(async r=>{ const raw=normalizeId(r); const info=await enrichWithTMDB(raw, true); return toVortexItem(raw, 'filme', info); }));
+
+  // 1. Busca no catálogo SuperFlix.
+  try {
+    const url = new URL(`${SUPERFLIX_BASE}/lista`);
+
+    url.searchParams.set('category', 'pesquisa');
+    url.searchParams.set('q', query.trim());
+    url.searchParams.set('format', 'json');
+    url.searchParams.set('limit', '30');
+
+    const data = await fetchJSON(url.toString());
+
+    const entries = Array.isArray(data)
+      ? data
+      : data.items || data.results || [];
+
+    const enriched = await Promise.all(
+      entries.slice(0, 10).map(async (entry) => {
+        const rawId = normalizeId(entry);
+
+        if (!rawId) return null;
+
+        // A busca do provedor pode misturar filmes e séries.
+        // Sem tipo confiável, não presumimos que tudo seja filme.
+        const category = String(
+          entry?.category ||
+          entry?.type ||
+          entry?.media_type ||
+          ''
+        ).toLowerCase();
+
+        const isMovie = isMovieCategory(category);
+
+        const info = await enrichWithTMDB(rawId, isMovie);
+
+        return toVortexItem(
+          rawId,
+          isMovie ? 'filme' : 'serie',
+          info
+        );
+      })
+    );
+
     results.push(...enriched.filter(Boolean));
-  }catch{}
-  // 2) TMDB SEARCH direto - resolve o problema de filmes que não aparecem
-  try{
-    if (!TMDB_KEY) return results;
-    const movieUrl=`${TMDB_BASE}/search/movie?api_key=${TMDB_KEY}&language=pt-BR&query=${encodeURIComponent(q)}`;
-    const tvUrl=`${TMDB_BASE}/search/tv?api_key=${TMDB_KEY}&language=pt-BR&query=${encodeURIComponent(q)}`;
-    const [movieData, tvData] = await Promise.all([ fetchJSON(movieUrl).catch(()=>({results:[]})), fetchJSON(tvUrl).catch(()=>({results:[]})) ]);
-    const movies = (movieData.results||[]).slice(0,12).map(m=> toVortexItem(String(m.id), 'filme', { title:m.title||m.name, originalTitle:m.original_title, synopsis:m.overview, year:(m.release_date||'').slice(0,4), poster:m.poster_path?`${TMDB_IMAGE}${m.poster_path}`:null, backdrop:m.backdrop_path?`https://image.tmdb.org/t/p/w1280${m.backdrop_path}`:null, rating:m.vote_average?String(m.vote_average.toFixed(1)):'14', genre:'Filme' }));
-    const series = (tvData.results||[]).slice(0,8).map(m=> toVortexItem(String(m.id), 'serie', { title:m.name, originalTitle:m.original_name, synopsis:m.overview, year:(m.first_air_date||'').slice(0,4), poster:m.poster_path?`${TMDB_IMAGE}${m.poster_path}`:null, backdrop:m.backdrop_path?`https://image.tmdb.org/t/p/w1280${m.backdrop_path}`:null, rating:m.vote_average?String(m.vote_average.toFixed(1)):'14', genre:'Série' }));
-    results.push(...movies, ...series);
-  }catch(e){ console.warn('TMDB search fail', e.message); }
-  // deduplica por providerId
-  const seen=new Set(); const dedup=[]; for(const r of results){ if(!r) continue; if(seen.has(r.providerId)) continue; seen.add(r.providerId); dedup.push(r); }
-  return dedup;
+  } catch (error) {
+    console.warn(
+      '[VORTEX] Busca SuperFlix falhou:',
+      error.message
+    );
+  }
+
+  // 2. Busca diretamente na TMDB.
+  if (TMDB_KEY) {
+    try {
+      const [movieData, tvData] = await Promise.all([
+        fetchJSON(
+          tmdbUrl('/search/movie', { query: query.trim() })
+        ).catch(() => ({ results: [] })),
+
+        fetchJSON(
+          tmdbUrl('/search/tv', { query: query.trim() })
+        ).catch(() => ({ results: [] })),
+      ]);
+
+      const movies = (movieData.results || [])
+        .slice(0, 12)
+        .map((movie) =>
+          toVortexItem(String(movie.id), 'filme', {
+            title: movie.title,
+            originalTitle: movie.original_title,
+            synopsis: movie.overview,
+            year: getYear(movie, true),
+            poster: getImage(movie.poster_path),
+            backdrop: getImage(
+              movie.backdrop_path,
+              TMDB_BACKDROP
+            ),
+            rating:
+              typeof movie.vote_average === 'number'
+                ? movie.vote_average.toFixed(1)
+                : null,
+            genre: 'Filme',
+          })
+        );
+
+      const tvSeries = (tvData.results || [])
+        .slice(0, 12)
+        .map((show) =>
+          toVortexItem(String(show.id), 'serie', {
+            title: show.name,
+            originalTitle: show.original_name,
+            synopsis: show.overview,
+            year: getYear(show, false),
+            poster: getImage(show.poster_path),
+            backdrop: getImage(
+              show.backdrop_path,
+              TMDB_BACKDROP
+            ),
+            rating:
+              typeof show.vote_average === 'number'
+                ? show.vote_average.toFixed(1)
+                : null,
+            genre: 'Série',
+          })
+        );
+
+      results.push(...movies, ...tvSeries);
+    } catch (error) {
+      console.warn(
+        '[VORTEX] Busca TMDB falhou:',
+        error.message
+      );
+    }
+  }
+
+  // Remove duplicatas mantendo o tipo de mídia no identificador.
+  const seen = new Set();
+
+  return results.filter((item) => {
+    if (!item) return false;
+
+    const key = `${item.type}:${item.providerId}`;
+
+    if (seen.has(key)) return false;
+
+    seen.add(key);
+    return true;
+  });
 }
-export async function getPlayback(contentId){
-  let raw=contentId; if(contentId.includes('-')){ const m=contentId.match(/tt\d+/); if(m) raw=m[0]; else raw=contentId.split('-').slice(1).join('-'); }
-  const isMovie=contentId.startsWith('filme-')||/tt\d+/.test(raw)||contentId.includes('filme'); const type=isMovie?'filme':'serie'; const basePlayer=`${SUPERFLIX_BASE}/${type}/${raw}`;
-  return { id:contentId, providerId:raw, type, playerUrl:basePlayer, playerUrlNoList:`${basePlayer}#noEpList`, playerUrlCustom:`${basePlayer}#noEpList#color:8dbdff#transparent`, buildUrl:(season=1, episode=1, hashes='#noEpList')=>{ if(type==='filme') return `${basePlayer}${hashes||''}`; return `${SUPERFLIX_BASE}/serie/${raw}/${season}/${episode}${hashes||''}`; } };
+
+/**
+ * Constrói os links de reprodução da SuperFlix.
+ * A existência de metadados na TMDB não garante
+ * que o provedor tenha o episódio disponível.
+ */
+export async function getPlayback(contentId) {
+  const id = String(contentId || '');
+
+  let raw = id;
+
+  if (id.includes('-')) {
+    const imdbMatch = id.match(/tt\d+/);
+
+    raw = imdbMatch
+      ? imdbMatch[0]
+      : id.split('-').slice(1).join('-');
+  }
+
+  const isMovie =
+    id.startsWith('filme-') ||
+    id.startsWith('movie-') ||
+    /tt\d+/.test(raw);
+
+  const type = isMovie ? 'filme' : 'serie';
+  const basePlayer = `${SUPERFLIX_BASE}/${type}/${raw}`;
+
+  return {
+    id,
+    providerId: raw,
+    type,
+    playerUrl: basePlayer,
+    playerUrlNoList: `${basePlayer}#noEpList`,
+    playerUrlCustom:
+      `${basePlayer}#noEpList#color:8dbdff#transparent`,
+
+    buildUrl: (
+      season = 1,
+      episode = 1,
+      hashes = '#noEpList'
+    ) => {
+      if (isMovie) {
+        return `${basePlayer}${hashes || ''}`;
+      }
+
+      return (
+        `${SUPERFLIX_BASE}/serie/${raw}/` +
+        `${season}/${episode}${hashes || ''}`
+      );
+    },
+  };
 }
-export async function getChannels(q=''){ return listByCategory('canais', 40); }
-export async function getEvents(sport=''){ const url=new URL(`${SUPERFLIX_BASE}/lista`); url.searchParams.set('category','eventos'); url.searchParams.set('format','json'); if(sport) url.searchParams.set('sport', sport); try{ return await fetchJSON(url.toString()); }catch{ return []; } }
+
+export async function getChannels() {
+  return listByCategory('canais', 40);
+}
+
+export async function getEvents(sport = '') {
+  const url = new URL(`${SUPERFLIX_BASE}/lista`);
+
+  url.searchParams.set('category', 'eventos');
+  url.searchParams.set('format', 'json');
+
+  if (sport) {
+    url.searchParams.set('sport', sport);
+  }
+
+  try {
+    return await fetchJSON(url.toString());
+  } catch {
+    return [];
+  }
+}
+
+
+/**
+ * Tendências reais da TMDB.
+ *
+ * window: "day" ou "week"
+ * Retorna títulos no formato usado pelo VORTEX.
+ */
+
+/**
+ * Tendências reais da TMDB.
+ *
+ * window: "day" ou "week"
+ * limit: quantidade solicitada, de 1 a 100.
+ *
+ * Retorna títulos no formato usado pelo VORTEX.
+ */
+export async function getTrending(window = 'day', limit = 40) {
+  if (!TMDB_KEY) {
+    throw new Error('TMDB_API_KEY não configurada.');
+  }
+
+  const timeWindow = window === 'week' ? 'week' : 'day';
+
+  const parsedLimit = Number(limit);
+  const safeLimit = Math.min(
+    Math.max(
+      Math.floor(Number.isFinite(parsedLimit) ? parsedLimit : 40),
+      1
+    ),
+    100
+  );
+
+  const collected = [];
+  const maxPages = Math.ceil(safeLimit / 20);
+
+  for (let page = 1; page <= maxPages; page += 1) {
+    const data = await fetchJSON(
+      tmdbUrl(`/trending/all/${timeWindow}`, { page })
+    );
+
+    const results = Array.isArray(data.results)
+      ? data.results
+      : [];
+
+    collected.push(...results);
+
+    // A TMDB normalmente fornece até 20 itens por página.
+    if (
+      results.length === 0 ||
+      collected.length >= safeLimit ||
+      page >= Number(data.total_pages || maxPages)
+    ) {
+      break;
+    }
+  }
+
+  return collected
+    .filter((entry) =>
+      ['movie', 'tv'].includes(entry.media_type)
+    )
+    .slice(0, safeLimit)
+    .map((entry) => {
+      const isMovie = entry.media_type === 'movie';
+      const category = isMovie ? 'filme' : 'serie';
+
+      const item = toVortexItem(
+        String(entry.id),
+        category,
+        {
+          title: entry.title || entry.name,
+          originalTitle:
+            entry.original_title || entry.original_name,
+          synopsis: entry.overview || '',
+          year: getYear(entry, isMovie),
+          poster: getImage(entry.poster_path),
+          backdrop: getImage(
+            entry.backdrop_path,
+            TMDB_BACKDROP
+          ),
+          rating:
+            typeof entry.vote_average === 'number'
+              ? entry.vote_average.toFixed(1)
+              : null,
+          genre: isMovie ? 'Filme' : 'Série',
+        }
+      );
+
+      return {
+        ...item,
+        popularity: entry.popularity ?? 0,
+        trendingWindow: timeWindow,
+      };
+    })
+    .filter(Boolean);
+}
