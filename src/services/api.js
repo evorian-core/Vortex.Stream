@@ -145,6 +145,53 @@ function trendScore(item) {
     : rating;
 }
 
+
+/**
+ * Busca os metadados de uma série e suas temporadas.
+ * O ID pode ser numérico ou estar no formato "series-71912".
+ */
+export async function fetchSeriesDetails(id) {
+  if (id === undefined || id === null || String(id).trim() === '') {
+    throw new Error('Não foi informado um ID válido para a série.');
+  }
+
+  const data = await request(
+    `/api/series/${encodeURIComponent(String(id))}`
+  );
+
+  if (!data || !Array.isArray(data.seasons)) {
+    throw new Error('A API não retornou as temporadas da série.');
+  }
+
+  return data;
+}
+
+/**
+ * Busca os episódios de uma temporada específica.
+ */
+export async function fetchSeasonEpisodes(id, seasonNumber) {
+  if (id === undefined || id === null || String(id).trim() === '') {
+    throw new Error('Não foi informado um ID válido para a série.');
+  }
+
+  const number = Number(seasonNumber);
+
+  if (!Number.isInteger(number) || number < 1) {
+    throw new Error('Número de temporada inválido.');
+  }
+
+  const data = await request(
+    `/api/series/${encodeURIComponent(String(id))}/seasons/${number}`
+  );
+
+  if (!data || !Array.isArray(data.episodes)) {
+    throw new Error('A API não retornou os episódios da temporada.');
+  }
+
+  return data;
+}
+
+
 function normalizeTrendingItem(item, index) {
   const kind = titleKind(item);
 
