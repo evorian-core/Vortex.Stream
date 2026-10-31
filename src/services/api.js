@@ -3,9 +3,7 @@ const API_BASE = 'https://vortex-stream-u8wz.onrender.com';
 async function request(path) {
   const response = await fetch(`${API_BASE}${path}`, {
     method: 'GET',
-    headers: {
-      Accept: 'application/json',
-    },
+    headers: { Accept: 'application/json' },
   });
 
   const contentType = response.headers.get('content-type') || '';
@@ -36,7 +34,6 @@ export async function fetchCatalog() {
 
 export async function fetchSearch(query) {
   const q = String(query || '').trim();
-
   if (!q) return [];
 
   try {
@@ -48,6 +45,26 @@ export async function fetchSearch(query) {
   }
 }
 
+/**
+ * Consulta os créditos de um filme ou série.
+ * Requer que o backend implemente a rota correspondente.
+ */
+export async function fetchCredits(id, type = 'movie') {
+  if (id === undefined || id === null || String(id).trim() === '') {
+    throw new Error('Não foi informado um ID válido para consultar o elenco.');
+  }
+
+  const mediaType = type === 'series' || type === 'tv' ? 'tv' : 'movie';
+
+  const data = await request(
+    `/api/${mediaType}/${encodeURIComponent(String(id))}/credits`
+  );
+
+  return Array.isArray(data)
+    ? data
+    : (data.cast || data.credits?.cast || data.items || []);
+}
+
 export async function fetchPlayback(id) {
   if (id === undefined || id === null || String(id).trim() === '') {
     throw new Error('Não foi informado um ID válido para reprodução.');
@@ -57,7 +74,6 @@ export async function fetchPlayback(id) {
 }
 
 const TOP_TEN_CACHE_KEY = 'vortex.top-ten.trending.v2';
-const TOP_TEN_CACHE_MAX_AGE = 60 * 60 * 1000;
 
 function readTopTenCache() {
   try {
@@ -65,9 +81,7 @@ function readTopTenCache() {
       localStorage.getItem(TOP_TEN_CACHE_KEY) || 'null'
     );
 
-    if (!cached || !Array.isArray(cached.items)) {
-      return null;
-    }
+    if (!cached || !Array.isArray(cached.items)) return null;
 
     return {
       items: cached.items,
@@ -96,9 +110,7 @@ function titleKind(item) {
     return 'movie';
   }
 
-  if (
-    ['tv', 'serie', 'série', 'series', 'show', 'television'].includes(raw)
-  ) {
+  if (['tv', 'serie', 'série', 'series', 'show', 'television'].includes(raw)) {
     return 'series';
   }
 
@@ -124,77 +136,21 @@ function trendScore(item) {
     }
   }
 
-  const votes =
-    Number(
-      item.vote_count ??
-      item.voteCount ??
-      item.votes ??
-      0
-    ) || 0;
+  const votes = Number(
+    item.vote_count ?? item.voteCount ?? item.votes ?? 0
+  ) || 0;
 
-  const rating =
-    Number(
-      item.vote_average ??
-      item.voteAverage ??
-      item.rating ??
-      0
-    ) || 0;
+  const rating = Number(
+    item.vote_average ?? item.voteAverage ?? item.rating ?? 0
+  ) || 0;
 
   return votes > 0
     ? Math.log10(votes + 1) * 10 + rating
     : rating;
 }
 
-
-/**
- * Busca os metadados de uma série e suas temporadas.
- * O ID pode ser numérico ou estar no formato "series-71912".
- */
-export async function fetchSeriesDetails(id) {
-  if (id === undefined || id === null || String(id).trim() === '') {
-    throw new Error('Não foi informado um ID válido para a série.');
-  }
-
-  const data = await request(
-    `/api/series/${encodeURIComponent(String(id))}`
-  );
-
-  if (!data || !Array.isArray(data.seasons)) {
-    throw new Error('A API não retornou as temporadas da série.');
-  }
-
-  return data;
-}
-
-/**
- * Busca os episódios de uma temporada específica.
- */
-export async function fetchSeasonEpisodes(id, seasonNumber) {
-  if (id === undefined || id === null || String(id).trim() === '') {
-    throw new Error('Não foi informado um ID válido para a série.');
-  }
-
-  const number = Number(seasonNumber);
-
-  if (!Number.isInteger(number) || number < 1) {
-    throw new Error('Número de temporada inválido.');
-  }
-
-  const data = await request(
-    `/api/series/${encodeURIComponent(String(id))}/seasons/${number}`
-  );
-
-  if (!data || !Array.isArray(data.episodes)) {
-    throw new Error('A API não retornou os episódios da temporada.');
-  }
-
-  return data;
-}
-
-
 function normalizeTrendingItem(item, index) {
   const kind = titleKind(item);
-
   const type =
     kind === 'movie' || kind === 'series'
       ? kind
@@ -244,23 +200,15 @@ function normalizeTrendingItem(item, index) {
 
     year:
       item.year ||
-      String(
-        item.release_date ||
-        item.first_air_date ||
-        ''
-      ).slice(0, 4) ||
+      String(item.release_date || item.first_air_date || '').slice(0, 4) ||
       null,
 
-    genre:
-      item.genre ||
-      (type === 'series' ? 'Série' : 'Filme'),
+    genre: item.genre || (type === 'series' ? 'Série' : 'Filme'),
   };
 }
 
 function buildTrendingTopTen(source) {
-  if (!Array.isArray(source)) {
-    return [];
-  }
+  if (!Array.isArray(source)) return [];
 
   const eligible = source
     .map((item, index) => ({
@@ -288,10 +236,10 @@ function buildTrendingTopTen(source) {
           Number(a.trending_rank) ||
           Number.MAX_SAFE_INTEGER
         ) -
-          (
-            Number(b.trending_rank) ||
-            Number.MAX_SAFE_INTEGER
-          ) ||
+        (
+          Number(b.trending_rank) ||
+          Number.MAX_SAFE_INTEGER
+        ) ||
         a.__sourceIndex - b.__sourceIndex
     );
   } else {
@@ -308,9 +256,7 @@ function buildTrendingTopTen(source) {
     .filter(item => {
       const key = String(item.id ?? item.title).toLowerCase();
 
-      if (seen.has(key)) {
-        return false;
-      }
+      if (seen.has(key)) return false;
 
       seen.add(key);
       return true;
@@ -323,10 +269,7 @@ function cacheTopTen(items) {
   try {
     localStorage.setItem(
       TOP_TEN_CACHE_KEY,
-      JSON.stringify({
-        items,
-        savedAt: Date.now(),
-      })
+      JSON.stringify({ items, savedAt: Date.now() })
     );
   } catch (error) {
     console.warn(
@@ -337,21 +280,17 @@ function cacheTopTen(items) {
 }
 
 /**
- * Atualiza o Top 10.
- *
  * Prioridade:
- * 1. Endpoint de tendências do backend.
- * 2. Catálogo remoto real, caso esteja disponível.
- * 3. Cache salvo anteriormente.
+ * 1. Tendências reais do backend.
+ * 2. Catálogo remoto real.
+ * 3. Último Top 10 salvo.
  *
- * O catálogo demonstrativo local não é usado automaticamente
- * para inventar um ranking de tendências.
+ * O catálogo demonstrativo local não é usado para inventar tendências.
  */
 export async function fetchTopTen(catalogOverride) {
   const cached = readTopTenCache();
 
   try {
-    // Tenta carregar tendências reais do backend.
     try {
       const trendingData = await request(
         '/api/trending?window=day&limit=40'
@@ -367,15 +306,12 @@ export async function fetchTopTen(catalogOverride) {
         cacheTopTen(items);
         return items;
       }
-    } catch (trendingError) {
+    } catch {
       console.warn(
-        '[VORTEX] Endpoint /api/trending indisponível. ' +
-        'O backend publicado precisa implementar essa rota. ' +
-        'Tentando o catálogo remoto.'
+        '[VORTEX] /api/trending indisponível. Tentando o catálogo remoto.'
       );
     }
 
-    // Compatibilidade com o backend atual.
     const catalog = Array.isArray(catalogOverride)
       ? catalogOverride
       : await fetchCatalog();
@@ -389,20 +325,16 @@ export async function fetchTopTen(catalogOverride) {
       }
     }
   } catch (error) {
-    console.error(
-      '[VORTEX] Falha ao atualizar Top 10:',
-      error
-    );
+    console.error('[VORTEX] Falha ao atualizar Top 10:', error);
   }
 
-  // Usa o último ranking salvo se as consultas falharem.
-  if (cached?.items?.length) {
-    return cached.items;
-  }
-
-  return null;
+  return cached?.items?.length ? cached.items : null;
 }
 
+/**
+ * O player é um iframe externo. Sem uma API oficial ou mensagens
+ * documentadas do player, não podemos ler seu tempo real de reprodução.
+ */
 export async function sendPlaybackEvent() {
-  return;
+  return false;
 }

@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Search, Play, Plus, Info, ChevronRight, ChevronLeft, X, Check,
@@ -13,53 +12,20 @@ import {
   fetchSearch,
   fetchTopTen,
   getCachedTopTen,
-  fetchSeriesDetails,
-  fetchSeasonEpisodes
+  fetchCredits
 } from './services/api';
-
-import { readHistory, saveProgress } from './services/watchHistory';
+import { readHistory } from './services/watchHistory';
 import SettingsPanel from './components/SettingsPanel';
 
 const AVATARS = [
-  { id: 'vortex', name: 'VORTEX', kind: 'Marca', tone: 'violet', image: '/logo-v.png' },
-  ...[
-    ['batman', 'Batman', 'Filmes'],
-    ['iron-man', 'Homem de Ferro', 'Filmes'],
-    ['darth-vader', 'Darth Vader', 'Filmes'],
-    ['harry-potter', 'Harry Potter', 'Filmes'],
-    ['wandinha', 'Wandinha Addams', 'Séries'],
-    ['sherlock', 'Sherlock Holmes', 'Séries'],
-    ['jack-sparrow', 'Jack Sparrow', 'Filmes'],
-    ['john-wick', 'John Wick', 'Filmes'],
-    ['loki', 'Loki', 'Séries'],
-    ['luffy', 'Luffy', 'Animes'],
-    ['moiraine', 'Moiraine Sedai', 'Séries'],
-    ['optimus-prime', 'Optimus Prime', 'Filmes'],
-    ['wonder-woman', 'Mulher-Maravilha', 'Filmes'],
-    ['deadpool', 'Deadpool', 'Filmes'],
-    ['yennefer', 'Yennefer de Vengerberg', 'Séries'],
-    ['stitch', 'Stitch', 'Infantil'],
-    ['pikachu', 'Pikachu', 'Infantil'],
-    ['toothless', 'Banguela', 'Infantil'],
-    ['mcqueen', 'Relâmpago McQueen', 'Infantil'],
-    ['mike-wazowski', 'Mike Wazowski', 'Infantil'],
-    ['elsa', 'Elsa', 'Infantil'],
-    ['olaf', 'Olaf', 'Infantil'],
-    ['po', 'Po', 'Infantil'],
-    ['shrek', 'Shrek', 'Infantil'],
-    ['puss-in-boots', 'Gato de Botas', 'Infantil'],
-    ['spongebob', 'Bob Esponja', 'Infantil'],
-    ['sonic', 'Sonic', 'Infantil'],
-    ['totoro', 'Totoro', 'Infantil'],
-    ['minion', 'Bob/Minion', 'Infantil'],
-    ['mario', 'Mario', 'Infantil']
-  ].map(([id, name, kind]) => ({
-    id,
-    name,
-    kind,
-    tone: 'violet',
-    image: ''
-  }))
+  { id: 'vortex', name: 'VORTEX', kind: 'Marca', tone: 'violet' },
+  { id: 'nova', name: 'Nova', kind: 'Avatar', tone: 'nova' },
+  { id: 'onyx', name: 'Onyx', kind: 'Avatar', tone: 'onyx' },
+  { id: 'sol', name: 'Sol', kind: 'Avatar', tone: 'sol' },
+  { id: 'luna', name: 'Luna', kind: 'Avatar', tone: 'luna' },
+  { id: 'ember', name: 'Ember', kind: 'Avatar', tone: 'ember' },
+  { id: 'echo', name: 'Echo', kind: 'Avatar', tone: 'echo' },
+  { id: 'atlas', name: 'Atlas', kind: 'Avatar', tone: 'atlas' },
 ];
 
 const buildAvatars = () => AVATARS;
@@ -94,28 +60,7 @@ const getCast = item => {
     item?.actors ||
     item?.credits?.cast ||
     item?.credits?.actors ||
-    item?.aggregate_credits?.cast ||
     [];
-
-  const photoUrl = person => {
-    const path =
-      person?.profile_path ||
-      person?.photo ||
-      person?.photo_url ||
-      person?.image ||
-      person?.image_url ||
-      person?.avatar ||
-      '';
-
-    if (typeof path !== 'string') return '';
-    if (/^https?:\/\//i.test(path)) return path;
-
-    if (path.startsWith('/')) {
-      return `https://image.tmdb.org/t/p/w185${path}`;
-    }
-
-    return '';
-  };
 
   if (Array.isArray(raw)) {
     return raw
@@ -124,18 +69,12 @@ const getCast = item => {
           ? {
               id: `${person}-${index}`,
               name: person,
-              character: '',
-              photo: ''
+              character: ''
             }
           : {
-              id: person.id || `${person.name || person.original_name}-${index}`,
-              name: person.name || person.original_name || person.actor || 'Artista',
-              character:
-                person.character ||
-                person.role ||
-                person.roles?.[0]?.character ||
-                '',
-              photo: photoUrl(person)
+              id: person.id || `${person.name}-${index}`,
+              name: person.name || person.original_name || 'Artista',
+              character: person.character || person.role || ''
             }
       )
       .filter(person => person.name);
@@ -147,8 +86,7 @@ const getCast = item => {
       .map((name, index) => ({
         id: `${name}-${index}`,
         name: name.trim(),
-        character: '',
-        photo: ''
+        character: ''
       }))
       .filter(person => person.name);
   }
@@ -163,100 +101,54 @@ const getSeasons = item => {
     item?.number_of_seasons_data ||
     [];
 
-  const normalized = new Map();
-
-  if (Array.isArray(raw)) {
-    raw.forEach((season, index) => {
-      const number = Number(
-        season?.number ??
-        season?.season_number ??
-        season?.season ??
-        index + 1
-      );
-
-      if (!Number.isFinite(number) || number < 1) return;
-
-      const sourceEpisodes = Array.isArray(season?.episodes)
-        ? season.episodes
-        : [];
-
-      normalized.set(number, {
-        ...season,
-        number,
-        episodes: sourceEpisodes.map((episode, episodeIndex) => ({
-          ...episode,
-          number: Number(
-            episode?.episode_number ??
-            episode?.episodeNumber ??
-            episode?.number ??
-            episodeIndex + 1
-          ),
-          title:
-            episode?.name ||
-            episode?.title ||
-            `Episódio ${
-              episode?.episode_number ??
-              episode?.number ??
-              episodeIndex + 1
-            }`
-        }))
-      });
-    });
+  if (Array.isArray(raw) && raw.length) {
+    return raw
+      .map((season, index) => ({
+        number: Number(
+          season.number ?? season.season_number ?? index + 1
+        ),
+        episodes: Array.isArray(season.episodes)
+          ? season.episodes
+          : []
+      }))
+      .filter(season => season.number > 0)
+      .sort((a, b) => a.number - b.number);
   }
 
   const episodes = Array.isArray(item?.episodes)
     ? item.episodes
     : [];
 
-  episodes.forEach((episode, index) => {
-    const number = Number(
-      episode?.season_number ??
-      episode?.season ??
-      1
-    );
+  if (episodes.length) {
+    const groups = new Map();
 
-    if (!Number.isFinite(number) || number < 1) return;
+    episodes.forEach((episode, index) => {
+      const number = Number(
+        episode.season_number ?? episode.season ?? 1
+      );
 
-    if (!normalized.has(number)) {
-      normalized.set(number, { number, episodes: [] });
-    }
+      if (!groups.has(number)) {
+        groups.set(number, []);
+      }
 
-    const season = normalized.get(number);
-
-    const episodeNumber = Number(
-      episode?.episode_number ??
-      episode?.episodeNumber ??
-      episode?.number ??
-      index + 1
-    );
-
-    if (
-      !season.episodes.some(
-        existing =>
-          Number(existing.number ?? existing.episode_number) === episodeNumber
-      )
-    ) {
-      season.episodes.push({
+      groups.get(number).push({
         ...episode,
-        number: episodeNumber,
+        number: Number(
+          episode.episode_number ?? episode.number ?? index + 1
+        ),
         title:
-          episode?.name ||
-          episode?.title ||
-          `Episódio ${episodeNumber}`
+          episode.name ||
+          episode.title ||
+          `Episódio ${episode.episode_number ?? episode.number ?? index + 1}`
       });
-    }
-  });
+    });
 
-  return [...normalized.values()]
-    .map(season => ({
-      ...season,
-      episodes: [...season.episodes].sort(
-        (a, b) =>
-          Number(a.number || a.episode_number || 0) -
-          Number(b.number || b.episode_number || 0)
-      )
-    }))
-    .sort((a, b) => a.number - b.number);
+    return [...groups.entries()]
+      .map(([number, episodes]) => ({ number, episodes }))
+      .sort((a, b) => a.number - b.number);
+  }
+
+  return [];
 };
 
 function PerfectLoader() {
@@ -275,7 +167,64 @@ function PerfectLoader() {
 }
 
 function CastSection({ item }) {
-  const cast = getCast(item);
+  const [cast, setCast] = useState(() => getCast(item));
+  const [castLoading, setCastLoading] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    const existing = getCast(item);
+
+    setCast(existing);
+
+    if (existing.length || !item?.id) {
+      return () => {
+        alive = false;
+      };
+    }
+
+    setCastLoading(true);
+
+    fetchCredits(item.id, item.type)
+      .then(data => {
+        if (!alive) return;
+
+        const normalized = Array.isArray(data)
+          ? data
+              .map((person, index) =>
+                typeof person === 'string'
+                  ? {
+                      id: `${person}-${index}`,
+                      name: person,
+                      character: ''
+                    }
+                  : {
+                      id: person.id || `${person.name}-${index}`,
+                      name:
+                        person.name ||
+                        person.original_name ||
+                        'Artista',
+                      character: person.character || person.role || ''
+                    }
+              )
+              .filter(person => person.name)
+          : [];
+
+        setCast(normalized);
+      })
+      .catch(error => {
+        console.info(
+          '[VORTEX] Elenco remoto indisponível para este título:',
+          error.message
+        );
+      })
+      .finally(() => {
+        if (alive) setCastLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [item?.id, item?.type]);
 
   return (
     <section className="cast-section">
@@ -284,8 +233,11 @@ function CastSection({ item }) {
           <span className="section-kicker">POR TRÁS DA HISTÓRIA</span>
           <h2>Elenco</h2>
         </div>
+
         <span className="section-count">
-          {cast.length ? `${cast.length} nomes` : 'Informações do elenco'}
+          {cast.length
+            ? `${cast.length} nomes`
+            : 'Informações do elenco'}
         </span>
       </div>
 
@@ -294,16 +246,7 @@ function CastSection({ item }) {
           {cast.map(person => (
             <article className="cast-card" key={person.id}>
               <div className="cast-avatar">
-                {person.photo ? (
-                  <img
-                    src={person.photo}
-                    alt={person.name}
-                    loading="lazy"
-                    onError={event => event.currentTarget.remove()}
-                  />
-                ) : (
-                  <CircleUserRound size={27} />
-                )}
+                <CircleUserRound size={27} />
               </div>
               <div>
                 <strong>{person.name}</strong>
@@ -314,7 +257,9 @@ function CastSection({ item }) {
         </div>
       ) : (
         <p className="muted-note">
-          O elenco ainda não está disponível para este título.
+          {castLoading
+            ? 'Carregando informações do elenco…'
+            : 'O elenco ainda não está disponível para este título.'}
         </p>
       )}
     </section>
@@ -334,51 +279,20 @@ function PlayerModal({
   const seasons = getSeasons(item);
 
   useEffect(() => {
-    if (!playback) {
-      setUrl('');
-      return;
-    }
+    if (!playback) return;
 
-    const isSeries =
-      ['serie', 'series', 'tv'].includes(
-        String(playback.type || item.type).toLowerCase()
-      ) || item.type === 'series';
-
-    let next = '';
-
-    if (isSeries) {
-      if (typeof playback.buildUrl === 'function') {
-        next = playback.buildUrl(season, episode, '#noEpList') || '';
-      } else if (playback.playerUrl) {
-        next = `${String(playback.playerUrl).replace(/\/+$/, '')}/${season}/${episode}#noEpList`;
-      }
+    if (playback.type === 'serie' || item.type === 'series') {
+      setUrl(
+        playback.buildUrl
+          ? playback.buildUrl(season, episode, '#noEpList')
+          : `${playback.playerUrl}/${season}/${episode}#noEpList`
+      );
     } else {
-      next = playback.playerUrlNoList || playback.playerUrl || '';
+      setUrl(playback.playerUrlNoList || playback.playerUrl || '');
     }
-
-    setUrl(
-      typeof next === 'string' && /^(https?:)?\/\//i.test(next)
-        ? next
-        : ''
-    );
   }, [season, episode, playback, item.type]);
 
   if (!playback || !url) return null;
-
-  const activeSeason = seasons.find(
-    current => current.number === season
-  );
-
-  const episodeCount = Math.max(
-    1,
-    Number(
-      activeSeason?.episode_count ||
-      activeSeason?.episodeCount ||
-      activeSeason?.episodes?.length ||
-      episode ||
-      1
-    )
-  );
 
   return (
     <div
@@ -393,6 +307,7 @@ function PlayerModal({
             <span className="section-kicker">VORTEX PLAYER</span>
             <h3>{item.title}</h3>
           </div>
+
           <button
             className="icon-button"
             onClick={onClose}
@@ -422,13 +337,16 @@ function PlayerModal({
                 value={season}
                 onChange={event => setSeason(Number(event.target.value))}
               >
-                {(seasons.length ? seasons : [{ number: season }]).map(
-                  current => (
-                    <option key={current.number} value={current.number}>
-                      {current.number}
-                    </option>
-                  )
-                )}
+                {(seasons.length
+                  ? seasons
+                  : Array.from({ length: 10 }, (_, index) => ({
+                      number: index + 1
+                    }))
+                ).map(value => (
+                  <option key={value.number} value={value.number}>
+                    {value.number}
+                  </option>
+                ))}
               </select>
             </label>
 
@@ -438,14 +356,11 @@ function PlayerModal({
                 value={episode}
                 onChange={event => setEpisode(Number(event.target.value))}
               >
-                {Array.from(
-                  { length: episodeCount },
-                  (_, index) => (
-                    <option key={index + 1} value={index + 1}>
-                      {index + 1}
-                    </option>
-                  )
-                )}
+                {Array.from({ length: 40 }, (_, index) => (
+                  <option key={index + 1} value={index + 1}>
+                    {index + 1}
+                  </option>
+                ))}
               </select>
             </label>
           </div>
@@ -493,14 +408,18 @@ function ProfilesScreen({ profiles, onChoose, onUpdate, items }) {
       </div>
 
       <div className="profiles-main">
-        <span className="section-kicker">SEU UNIVERSO, SUAS REGRAS</span>
+        <span className="section-kicker">
+          SEU UNIVERSO, SUAS REGRAS
+        </span>
+
         <h1>Quem está assistindo?</h1>
         <p>Escolha um perfil para continuar de onde parou.</p>
 
         <div className="profile-grid">
           {profiles.map(profile => {
             const selectedAvatar =
-              avatars.find(item => item.id === profile.avatar) || AVATARS[0];
+              avatars.find(value => value.id === profile.avatar) ||
+              AVATARS[0];
 
             return (
               <button
@@ -512,17 +431,19 @@ function ProfilesScreen({ profiles, onChoose, onUpdate, items }) {
                   className={`profile-avatar avatar-${selectedAvatar.tone || 'violet'}`}
                   aria-hidden="true"
                 >
-                  {selectedAvatar.image ? (
-                    <img src={selectedAvatar.image} alt="" />
+                  {selectedAvatar.id === 'vortex' ? (
+                    <img src="/logo-v.png" alt="" />
                   ) : (
                     <span className="avatar-monogram">
                       {selectedAvatar.name.slice(0, 1)}
                     </span>
                   )}
+
                   <span className="avatar-badge">
                     {profile.kids ? 'KIDS' : 'V'}
                   </span>
                 </span>
+
                 <strong>{profile.name}</strong>
               </button>
             );
@@ -543,6 +464,7 @@ function ProfilesScreen({ profiles, onChoose, onUpdate, items }) {
           <form className="profile-editor" onSubmit={createProfile}>
             <div className="editor-heading">
               <h2>Novo perfil</h2>
+
               <button
                 type="button"
                 className="icon-button"
@@ -566,22 +488,24 @@ function ProfilesScreen({ profiles, onChoose, onUpdate, items }) {
             <span className="field-label">Escolha seu avatar</span>
 
             <div className="avatar-choices">
-              {avatars.map(item => (
+              {avatars.map(value => (
                 <button
                   type="button"
-                  key={item.id}
-                  className={`avatar-choice ${avatar === item.id ? 'chosen' : ''}`}
-                  onClick={() => setAvatar(item.id)}
-                  title={item.name}
+                  key={value.id}
+                  className={`avatar-choice ${avatar === value.id ? 'chosen' : ''}`}
+                  onClick={() => setAvatar(value.id)}
+                  title={value.name}
                 >
-                  <span className={`avatar-choice-art avatar-${item.tone || 'violet'}`}>
-                    {item.image ? (
-                      <img src={item.image} alt="" />
+                  <span
+                    className={`avatar-choice-art avatar-${value.tone || 'violet'}`}
+                  >
+                    {value.id === 'vortex' ? (
+                      <img src="/logo-v.png" alt="" />
                     ) : (
-                      <span>{item.name.slice(0, 1)}</span>
+                      <span>{value.name.slice(0, 1)}</span>
                     )}
                   </span>
-                  <span>{item.name}</span>
+                  <span>{value.name}</span>
                 </button>
               ))}
             </div>
@@ -596,8 +520,7 @@ function ProfilesScreen({ profiles, onChoose, onUpdate, items }) {
             </label>
 
             <button className="primary-button" type="submit">
-              <Check size={17} />
-              Criar perfil
+              <Check size={17} /> Criar perfil
             </button>
           </form>
         )}
@@ -610,23 +533,60 @@ function ProfilesScreen({ profiles, onChoose, onUpdate, items }) {
   );
 }
 
+const favoritesKey = profileId =>
+  `vortex.mylist.v2.${String(profileId || 'main')}`;
+
+function readFavorites(profileId) {
+  try {
+    const stored = localStorage.getItem(favoritesKey(profileId));
+
+    if (stored !== null) {
+      const current = JSON.parse(stored);
+      return Array.isArray(current) ? current.map(String) : [];
+    }
+
+    if (String(profileId || 'main') === 'main') {
+      const legacy = JSON.parse(
+        localStorage.getItem('vortex.mylist.v1') || '[]'
+      );
+
+      if (Array.isArray(legacy)) return legacy.map(String);
+    }
+
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+function writeFavorites(profileId, ids) {
+  try {
+    localStorage.setItem(
+      favoritesKey(profileId),
+      JSON.stringify([...new Set(ids.map(String))])
+    );
+  } catch (error) {
+    console.warn(
+      '[VORTEX] Não foi possível salvar Minha Lista:',
+      error
+    );
+  }
+}
+
 export default function App() {
   const [items, setItems] = useState(demoCatalog);
+
   const [topTen, setTopTen] = useState(
-    () => getCachedTopTen() || []
+    () => getCachedTopTen() || demoCatalog.slice(0, 10)
   );
-  const [history, setHistory] = useState(readHistory);
+
+  const [history, setHistory] = useState(() => readHistory(null));
+  const [favorites, setFavorites] = useState([]);
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeNav, setActiveNav] = useState('Início');
-
   const [season, setSeason] = useState(1);
-  const [seriesDetails, setSeriesDetails] = useState(null);
-  const [episodesLoading, setEpisodesLoading] = useState(false);
-  const [episodesError, setEpisodesError] = useState('');
-  const [seasonReload, setSeasonReload] = useState(0);
-
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState(null);
   const [playback, setPlayback] = useState(null);
@@ -695,6 +655,11 @@ export default function App() {
     localStorage.setItem(PROFILE_KEY, JSON.stringify(profiles));
   }, [profiles]);
 
+  useEffect(() => {
+    setHistory(readHistory(profile?.id || null));
+    setFavorites(readFavorites(profile?.id || 'main'));
+  }, [profile?.id]);
+
   const heroCandidates = useMemo(() => {
     const combined = [
       ...topTen,
@@ -723,7 +688,7 @@ export default function App() {
 
   const hero = heroCandidates.length
     ? heroCandidates[heroIndex % heroCandidates.length]
-    : items.find(item => item.featured) || items[0] || demoCatalog[0];
+    : (items.find(item => item.featured) || items[0] || demoCatalog[0]);
 
   useEffect(() => {
     if (heroCandidates.length < 2) return;
@@ -740,9 +705,10 @@ export default function App() {
   }, [heroIndex, heroCandidates.length]);
 
   const continueItems = history
+    .filter(entry => Number(entry.progress) > 0)
     .map(entry => {
       const item = items.find(
-        current => String(current.id) === String(entry.id)
+        value => String(value.id) === String(entry.id)
       );
 
       return item ? { ...item, progress: entry.progress } : null;
@@ -765,17 +731,7 @@ export default function App() {
               )
             )
           : activeNav === 'Minha Lista'
-            ? items.filter(item => {
-                try {
-                  return JSON.parse(
-                    localStorage.getItem('vortex.mylist.v1') || '[]'
-                  )
-                    .map(String)
-                    .includes(String(item.id));
-                } catch {
-                  return false;
-                }
-              })
+            ? items.filter(item => favorites.includes(String(item.id)))
             : items;
 
   function updateProfiles(next) {
@@ -783,18 +739,27 @@ export default function App() {
     localStorage.setItem(PROFILE_KEY, JSON.stringify(next));
   }
 
+  function toggleFavorite(item) {
+    const id = String(item.id);
+
+    const next = favorites.includes(id)
+      ? favorites.filter(value => value !== id)
+      : [...favorites, id];
+
+    setFavorites(next);
+    writeFavorites(profile?.id || 'main', next);
+
+    setNotice(
+      next.includes(id)
+        ? 'Adicionado à Minha Lista.'
+        : 'Removido da Minha Lista.'
+    );
+
+    window.setTimeout(() => setNotice(''), 2200);
+  }
+
   async function play(item, extra = {}) {
     try {
-      saveProgress(
-        item,
-        Math.min(
-          94,
-          (history.find(entry => entry.id === item.id)?.progress || 0) + 12
-        )
-      );
-
-      setHistory(readHistory());
-
       const result = await fetchPlayback(item.id);
 
       setPlaying(item);
@@ -807,8 +772,10 @@ export default function App() {
         1
       );
     } catch (error) {
-      console.error('[VORTEX] Falha ao iniciar reprodução:', error);
+      console.error('[VORTEX] Falha na reprodução:', error);
+
       setNotice('Não foi possível reproduzir este título.');
+
       window.setTimeout(() => setNotice(''), 2800);
     }
   }
@@ -818,139 +785,31 @@ export default function App() {
 
     if (!search.trim()) {
       const data = await fetchCatalog();
+
       if (data?.length) setItems(data);
+
       return;
     }
 
     setLoading(true);
 
-    const data = await fetchSearch(search);
-
-    if (data?.length) setItems(data);
-
-    setLoading(false);
-  }
-
-  async function openDetails(item) {
-    setSelected(item);
-    setSeriesDetails(null);
-    setEpisodesError('');
-    setSeasonReload(0);
-
-    const existingSeasons = getSeasons(item);
-    const initialSeason = existingSeasons[0]?.number || 1;
-
-    setSeason(initialSeason);
-
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-
-    if (item.type !== 'series') {
-      setEpisodesLoading(false);
-      return;
-    }
-
-    setEpisodesLoading(true);
-
     try {
-      const details = await fetchSeriesDetails(item.id);
+      const data = await fetchSearch(search);
 
-      setSeriesDetails({
-        ...details,
-        id: item.id
-      });
-
-      const availableSeasons = Array.isArray(details.seasons)
-        ? details.seasons
-        : [];
-
-      const firstSeason =
-        availableSeasons.find(entry => Number(entry.number) > 0)?.number ||
-        initialSeason;
-
-      setSeason(Number(firstSeason));
-    } catch (error) {
-      console.error('[VORTEX] Falha ao carregar detalhes da série:', error);
-
-      setEpisodesError(
-        'Não foi possível carregar as temporadas. Tente novamente.'
-      );
+      if (data?.length) setItems(data);
     } finally {
-      setEpisodesLoading(false);
+      setLoading(false);
     }
   }
 
-  // Carrega os episódios da temporada selecionada.
-  useEffect(() => {
-    if (!selected || selected.type !== 'series') {
-      return undefined;
-    }
-
-    let cancelled = false;
-
-    async function loadSeason() {
-      setEpisodesLoading(true);
-      setEpisodesError('');
-
-      try {
-        const data = await fetchSeasonEpisodes(selected.id, season);
-
-        if (cancelled) return;
-
-        setSeriesDetails(previous => {
-          const base = previous || selected;
-          const previousSeasons = Array.isArray(base.seasons)
-            ? base.seasons
-            : [];
-
-          const updatedSeason = {
-            ...data,
-            number: Number(data.number ?? season),
-            episodes: data.episodes
-          };
-
-          const seasons = previousSeasons.filter(
-            entry => Number(entry.number) !== Number(updatedSeason.number)
-          );
-
-          seasons.push(updatedSeason);
-          seasons.sort((a, b) => Number(a.number) - Number(b.number));
-
-          return {
-            ...base,
-            ...data,
-            id: selected.id,
-            seasons
-          };
-        });
-      } catch (error) {
-        if (cancelled) return;
-
-        console.error('[VORTEX] Falha ao carregar episódios:', error);
-
-        setEpisodesError(
-          'Não foi possível carregar os episódios desta temporada.'
-        );
-      } finally {
-        if (!cancelled) setEpisodesLoading(false);
-      }
-    }
-
-    loadSeason();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selected?.id, selected?.type, season, seasonReload]);
-
-  function retrySeason() {
-    setSeasonReload(value => value + 1);
+  function openDetails(item) {
+    setSelected(item);
+    setSeason(getSeasons(item)[0]?.number || 1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function goHome() {
     setSelected(null);
-    setSeriesDetails(null);
-    setEpisodesError('');
-    setEpisodesLoading(false);
     setSearch('');
     setSearchOpen(false);
     setActiveNav('Início');
@@ -977,6 +836,8 @@ export default function App() {
         profiles={profiles}
         onChoose={selectedProfile => {
           setProfile(selectedProfile);
+          setHistory(readHistory(selectedProfile.id));
+          setFavorites(readFavorites(selectedProfile.id));
           setShowProfiles(false);
         }}
         onUpdate={updateProfiles}
@@ -1002,8 +863,8 @@ export default function App() {
           setProfile(nextProfile);
 
           updateProfiles(
-            profiles.map(entry =>
-              entry.id === profile.id ? nextProfile : entry
+            profiles.map(value =>
+              value.id === profile.id ? nextProfile : value
             )
           );
         }}
@@ -1014,16 +875,9 @@ export default function App() {
   if (loading) return <PerfectLoader />;
 
   if (selected) {
-    const detailsItem = seriesDetails
-      ? { ...selected, ...seriesDetails }
-      : selected;
-
     const backdrop = img(selected.backdrop, img(selected.poster));
-    const seasons = getSeasons(detailsItem);
-
-    const activeSeason =
-      seasons.find(entry => entry.number === season) || seasons[0];
-
+    const seasons = getSeasons(selected);
+    const activeSeason = seasons.find(value => value.number === season) || seasons[0];
     const episodes = activeSeason?.episodes || [];
 
     return (
@@ -1102,14 +956,15 @@ export default function App() {
 
               <button
                 className="secondary-button"
-                onClick={() =>
-                  setNotice(
-                    'Adicione favoritos quando sua conta estiver conectada.'
-                  )
-                }
+                onClick={() => toggleFavorite(selected)}
               >
-                <Plus size={17} />
-                Minha lista
+                {favorites.includes(String(selected.id))
+                  ? <Check size={17} />
+                  : <Plus size={17} />}
+
+                {favorites.includes(String(selected.id))
+                  ? 'Na minha lista'
+                  : 'Minha lista'}
               </button>
             </div>
           </div>
@@ -1117,146 +972,99 @@ export default function App() {
           <div className="details-gradient-bottom" />
         </section>
 
-        {selected.type === 'series' ? (
-          <>
-            <section className="episodes-section">
-              <div className="section-title">
-                <div>
-                  <span className="section-kicker">CONTINUE A HISTÓRIA</span>
-                  <h2>Episódios</h2>
-                </div>
-
-                {seasons.length > 0 && (
-                  <label className="season-select-label">
-                    Temporada
-                    <select
-                      value={activeSeason?.number || season}
-                      onChange={event => {
-                        setSeason(Number(event.target.value));
-                        setEpisodesError('');
-                      }}
-                    >
-                      {seasons.map(entry => (
-                        <option key={entry.number} value={entry.number}>
-                          Temporada {entry.number}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
+        {selected.type === 'series' && (
+          <section className="episodes-section">
+            <div className="section-title">
+              <div>
+                <span className="section-kicker">CONTINUE A HISTÓRIA</span>
+                <h2>Episódios</h2>
               </div>
 
-              {episodesLoading ? (
-                <div className="empty-state">
-                  <Clapperboard size={28} />
-                  <h3>Carregando episódios…</h3>
-                  <p>Buscando os detalhes desta temporada.</p>
-                </div>
-              ) : episodesError ? (
-                <div className="empty-state">
-                  <Clapperboard size={28} />
-                  <h3>Não foi possível carregar</h3>
-                  <p>{episodesError}</p>
-                  <button
-                    className="secondary-button"
-                    onClick={retrySeason}
+              {seasons.length > 0 && (
+                <label className="season-select-label">
+                  Temporada
+                  <select
+                    value={activeSeason?.number || season}
+                    onChange={event => setSeason(Number(event.target.value))}
                   >
-                    Tentar novamente
-                  </button>
-                </div>
-              ) : episodes.length > 0 ? (
-                <div className="episode-grid">
-                  {episodes.map((episode, index) => {
-                    const episodeNumber =
-                      episode.number ||
-                      episode.episode_number ||
-                      index + 1;
-
-                    const title =
-                      episode.name ||
-                      episode.title ||
-                      `Episódio ${episodeNumber}`;
-
-                    const still = img(
-                      episode.still_path ||
-                      episode.still ||
-                      episode.image ||
-                      episode.thumbnail,
-                      backdrop
-                    );
-
-                    const duration =
-                      episode.runtime ||
-                      (
-                        typeof episode.duration === 'string'
-                          ? parseInt(episode.duration, 10)
-                          : episode.duration
-                      );
-
-                    return (
-                      <article
-                        className="episode-card"
-                        key={`${activeSeason?.number}-${episode.id || episodeNumber}`}
-                      >
-                        <button
-                          className="episode-thumb"
-                          onClick={() =>
-                            play(selected, {
-                              season: activeSeason?.number || season,
-                              episode
-                            })
-                          }
-                          style={{
-                            backgroundImage: `linear-gradient(0deg,#090b10cc,transparent),url("${still || ''}")`
-                          }}
-                          aria-label={`Reproduzir ${title}`}
-                        >
-                          <span className="episode-play">
-                            <Play size={18} fill="currentColor" />
-                          </span>
-
-                          <span className="episode-duration">
-                            {duration
-                              ? `${duration} min`
-                              : `EP ${episodeNumber}`}
-                          </span>
-                        </button>
-
-                        <div className="episode-copy">
-                          <span>EPISÓDIO {episodeNumber}</span>
-                          <h3>{title}</h3>
-
-                          {(episode.overview || episode.synopsis) && (
-                            <p>{episode.overview || episode.synopsis}</p>
-                          )}
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="empty-state">
-                  <Clapperboard size={28} />
-                  <h3>Episódios indisponíveis</h3>
-                  <p>
-                    Esta temporada não possui episódios disponíveis na
-                    resposta da API.
-                  </p>
-                  <button
-                    className="secondary-button"
-                    onClick={retrySeason}
-                  >
-                    Atualizar episódios
-                  </button>
-                </div>
+                    {seasons.map(value => (
+                      <option key={value.number} value={value.number}>
+                        Temporada {value.number}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               )}
-            </section>
+            </div>
 
-            <CastSection item={detailsItem} />
-          </>
-        ) : (
-          <CastSection item={selected} />
+            {episodes.length ? (
+              <div className="episode-grid">
+                {episodes.map((episode, index) => (
+                  <article
+                    className="episode-card"
+                    key={`${activeSeason?.number}-${episode.id || episode.number || index}`}
+                  >
+                    <button
+                      className="episode-thumb"
+                      onClick={() =>
+                        play(selected, {
+                          season: activeSeason?.number || season,
+                          episode
+                        })
+                      }
+                      style={{
+                        backgroundImage:
+                          `linear-gradient(0deg,#090b10cc,transparent),url("${img(
+                            episode.still_path ||
+                            episode.still ||
+                            episode.image ||
+                            episode.thumbnail,
+                            backdrop
+                          ) || ''}")`
+                      }}
+                    >
+                      <span className="episode-play">
+                        <Play size={18} fill="currentColor" />
+                      </span>
+
+                      <span className="episode-duration">
+                        {episode.runtime
+                          ? `${episode.runtime} min`
+                          : `EP ${episode.episode_number || episode.number || index + 1}`}
+                      </span>
+                    </button>
+
+                    <div className="episode-copy">
+                      <span>
+                        EPISÓDIO {episode.episode_number || episode.number || index + 1}
+                      </span>
+
+                      <h3>
+                        {episode.name ||
+                          episode.title ||
+                          `Episódio ${episode.episode_number || episode.number || index + 1}`}
+                      </h3>
+
+                      {(episode.overview || episode.synopsis) && (
+                        <p>{episode.overview || episode.synopsis}</p>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state">
+                <Clapperboard size={28} />
+                <h3>Episódios indisponíveis</h3>
+                <p>
+                  A API ainda não forneceu a lista de episódios desta temporada.
+                </p>
+              </div>
+            )}
+          </section>
         )}
+
+        <CastSection item={selected} />
 
         <footer className="site-footer">
           <span className="brand-symbol">V</span>
@@ -1382,7 +1190,9 @@ export default function App() {
               <h1>
                 Resultados para <em>“{search}”</em>
               </h1>
-              <p>{filtered.length} títulos encontrados no catálogo carregado.</p>
+              <p>
+                {filtered.length} títulos encontrados no catálogo carregado.
+              </p>
             </div>
 
             {filtered.length ? (
@@ -1604,7 +1414,10 @@ function PosterCard({ item, onDetails, onPlay }) {
       </button>
 
       <div className="catalog-card-info">
-        <button className="catalog-title" onClick={() => onDetails(item)}>
+        <button
+          className="catalog-title"
+          onClick={() => onDetails(item)}
+        >
           {item.title}
         </button>
 
@@ -1638,9 +1451,7 @@ function ContentRow({
   if (!items?.length) return null;
 
   return (
-    <section
-      className={`content-section ${ranked ? 'content-section-ranked' : ''}`}
-    >
+    <section className="content-section">
       <div className="section-title">
         <div>
           <h2>{title}</h2>
@@ -1670,45 +1481,40 @@ function ContentRow({
         </div>
       </div>
 
-      <div className={`poster-track ${ranked ? 'poster-track-ranked' : ''}`}>
+      <div className="poster-track">
         {items.slice(offset, offset + 8).map((item, index) => (
           <article
             className={`poster-card ${ranked ? 'ranked-card' : ''}`}
-            key={item.id || item.title}
+            key={item.id}
           >
-            <div className="poster-art">
-              {ranked && (
-                <span
-                  className="rank-number"
-                  aria-label={`Posição ${offset + index + 1}`}
-                >
-                  {String(offset + index + 1).padStart(2, '0')}
+            {ranked && (
+              <span className="rank-number">
+                {String(offset + index + 1).padStart(2, '0')}
+              </span>
+            )}
+
+            <button
+              className="poster-image"
+              style={{ backgroundImage: `url("${img(item.poster, '')}")` }}
+              onClick={() => onDetails(item)}
+              aria-label={`Detalhes de ${item.title}`}
+            >
+              <span className="poster-hover">
+                <span className="mini-play">
+                  <Play size={13} fill="currentColor" />
+                </span>
+                <span className="poster-hover-title">{item.title}</span>
+              </span>
+
+              {progress && (
+                <span className="progress-track">
+                  <i style={{ width: `${item.progress || 0}%` }} />
                 </span>
               )}
-
-              <button
-                className="poster-image"
-                style={{ backgroundImage: `url("${img(item.poster, '')}")` }}
-                onClick={() => onDetails(item)}
-                aria-label={`Detalhes de ${item.title}`}
-              >
-                <span className="poster-hover">
-                  <span className="mini-play">
-                    <Play size={13} fill="currentColor" />
-                  </span>
-                  <span className="poster-hover-title">{item.title}</span>
-                </span>
-
-                {progress && (
-                  <span className="progress-track">
-                    <i style={{ width: `${item.progress || 12}%` }} />
-                  </span>
-                )}
-              </button>
-            </div>
+            </button>
 
             <div className="poster-caption">
-              <button onClick={() => onDetails(item)} title={item.title}>
+              <button onClick={() => onDetails(item)}>
                 {item.title}
               </button>
 
